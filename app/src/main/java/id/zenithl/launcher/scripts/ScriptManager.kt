@@ -137,6 +137,7 @@ class ScriptManager(
             }
             override fun onError(trace: String) {
                 if (running[sessionId] != active) return
+                watchdog?.reportError(sessionId, trace.lineSequence().firstOrNull().orEmpty(), trace)
                 val line = Regex("\\.lua:(\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
                 val error = ScriptError(script.name, script.path, line, trace.lineSequence().firstOrNull().orEmpty(), trace, System.currentTimeMillis(), sessionId)
                 val timeout = trace.contains("runtime budget", ignoreCase = true) || watchdog?.state(sessionId) == WatchdogState.TIMEOUT

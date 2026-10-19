@@ -32,9 +32,9 @@ class SafetyEngine(
 
     init { require(maxIncidents > 0) }
 
-    fun record(sessionId: String?, scriptId: String?, severity: SafetySeverity, code: String, message: String): SafetyIncident {
+    fun record(sessionId: String?, scriptId: String?, severity: SafetySeverity, code: String, message: String, stackTrace: String? = null): SafetyIncident {
         require(code.isNotBlank() && message.isNotBlank())
-        return SafetyIncident(sequence.incrementAndGet(), sessionId, scriptId, severity, code, message).also {
+        return SafetyIncident(sequence.incrementAndGet(), sessionId, scriptId, severity, code, message, stackTrace = stackTrace).also {
             incidents.addFirst(it)
             persistIncident(it)
             while (incidents.size > maxIncidents) incidents.pollLast()
@@ -86,6 +86,7 @@ data class ScriptWatchdogSnapshot(
 interface ScriptWatchdog {
     fun start(sessionId: String, scriptId: String)
     fun setPaused(sessionId: String, paused: Boolean)
+    fun reportError(sessionId: String, message: String, stackTrace: String)
     fun state(sessionId: String): WatchdogState?
     fun complete(sessionId: String, state: WatchdogState = WatchdogState.STOPPED)
 }
@@ -129,7 +130,15 @@ class SafetyMonitor(
             }
         }
     }
-    override fun setPaused(sessionId: String, paused: Boolean) { runs[sessionId]?.state = if (paused) WatchdogState.PAUSED else WatchdogState.RUNNING }
+    override fun setPaused(sessionId: String, paused: Boolean) { runs[sessionId]?.let { run ->
+        if (run.state == WatchdogState.RUNNING || run.state == WatchdogState.PAUSED)
+            run.state = if (paused) WatchdogState.PAUSED else WatchdogState.RUNNING
+    } }
+    override fun reportError(sessionId: String, message: String, stackTrace: String) {
+        val run = runs[sessionId] ?: return
+        run.state = WatchdogState.ERROR
+        engine.record(sessionId, run.scriptId, SafetySeverity.HIGH, "LUA_RUNTIME_ERROR", message.take(500), stackTrace.take(8_000))
+    }
     override fun state(sessionId: String): WatchdogState? = runs[sessionId]?.state
     override fun complete(sessionId: String, state: WatchdogState) { runs.remove(sessionId)?.state = state }
     fun snapshots(): List<ScriptWatchdogSnapshot> = runs.values.map { it.snapshot() }.sortedBy { it.startedAt }
