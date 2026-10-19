@@ -6,7 +6,9 @@
     </queries>
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Zenith'L"
+        android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
         <activity android:name=".EditorActivity" android:exported="false" />
@@ -17,5 +19,17 @@
             </intent-filter>
         </activity>
         <service android:name=".OverlayService" android:exported="false" />
+        <service
+            android:name=".GameWatcherService"
+            android:exported="true"
+            android:label="Zenith'L App Watcher"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_watcher" />
+        </service>
     </application>
 </manifest>

@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.CheckBox
 import android.widget.TextView
 import android.widget.Toast
 
@@ -71,6 +72,23 @@ class OverlayService : Service() {
             background = GradientDrawable().apply { setColor(0xF0101E30.toInt()); cornerRadius = 18f; setStroke(2, Ui.BLUE) }
         }
         box.addView(TextView(this).apply { text = "Zenith'L Workspace"; textSize = 18f; setTextColor(Ui.WHITE); setPadding(0,0,0,12) })
+        box.addView(TextView(this).apply { text = "AUTO-RUN SCRIPTS"; textSize = 12f; setTextColor(Ui.MUTED); setPadding(0,0,0,6) })
+        val scripts = ScriptFiles.list(this)
+        if (scripts.isEmpty()) box.addView(TextView(this).apply { text = "No Lua files yet"; setTextColor(Ui.MUTED); setPadding(0,8,0,8) })
+        scripts.forEach { file ->
+            box.addView(CheckBox(this).apply {
+                text = file.name
+                setTextColor(Ui.WHITE)
+                isChecked = ScriptFiles.isAutoRun(this@OverlayService, file)
+                setOnCheckedChangeListener { _, checked -> ScriptFiles.setAutoRun(this@OverlayService, file, checked) }
+            })
+        }
+        box.addView(action("▶  PLAY SCRIPT  (RUNTIME UNAVAILABLE)") {
+            Toast.makeText(this, "Lua runtime dan koneksi game belum tersedia; script tidak dijalankan.", Toast.LENGTH_LONG).show()
+        })
+        box.addView(action("Ⅱ  PAUSE SCRIPT  (RUNTIME UNAVAILABLE)") {
+            Toast.makeText(this, "Tidak ada script yang sedang berjalan.", Toast.LENGTH_SHORT).show()
+        })
         box.addView(action("OPEN LUA FILES") { removePanel(); startActivity(Intent(this, EditorActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
         box.addView(action("HIDE PANEL") { removePanel() })
         box.addView(action("CLOSE FLOATING BUTTON") { removePanel(); stopSelf() })

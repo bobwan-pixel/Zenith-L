@@ -5,7 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.LinearLayout
+import android.widget.CheckBox
 import android.widget.Toast
 
 class MainActivity : Activity() {
@@ -14,36 +14,52 @@ class MainActivity : Activity() {
         render()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (findViewById<android.view.View>(android.R.id.content) != null) render()
+    }
+
     private fun render() {
         val root = Ui.page(this)
         root.addView(Ui.title(this, "Zenith'L", 30f))
-        root.addView(Ui.label(this, "GROWTOPIA TOOLKIT  •  VERSION 0.1.0"))
+        root.addView(Ui.label(this, "GROWTOPIA TOOLKIT  •  VERSION 0.2.0"))
+        root.addView(Ui.label(this, "Pilih script yang akan disiapkan saat Growtopia dibuka."))
+        val scripts = ScriptFiles.list(this)
+        if (scripts.isEmpty()) root.addView(Ui.label(this, "Belum ada script Lua. Buat dulu di Lua File Manager."))
+        scripts.forEach { file ->
+            root.addView(CheckBox(this).apply {
+                text = "Auto-run: ${file.name}"
+                setTextColor(Ui.WHITE)
+                isChecked = ScriptFiles.isAutoRun(this@MainActivity, file)
+                setOnCheckedChangeListener { _, checked -> ScriptFiles.setAutoRun(this@MainActivity, file, checked) }
+            })
+        }
         root.addView(Ui.button(this, "LAUNCH GROWTOPIA") { launchGrowtopia() })
         root.addView(Ui.button(this, "OPEN LUA FILE MANAGER") { startActivity(Intent(this, EditorActivity::class.java)) })
-        root.addView(Ui.button(this, "ENABLE FLOATING MENU") { enableOverlay() })
-        root.addView(Ui.button(this, "OPEN FLOATING MENU") {
-            if (Settings.canDrawOverlays(this)) startService(Intent(this, OverlayService::class.java)) else enableOverlay()
-        })
+        root.addView(Ui.button(this, "SET UP AUTO FLOATING MENU") { setupAutoOverlay() })
+        root.addView(Ui.label(this, "Pilihan auto-run tersimpan, tetapi runtime Lua dan integrasi in-game belum tersedia."))
         root.addView(Ui.button(this, "ABOUT / LIMITATIONS") {
-            Toast.makeText(this, "Lua editor and file storage are available. In-game Lua execution/API integration is not included yet.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Overlay tampil saat game terbuka. Eksekusi Lua belum didukung.", Toast.LENGTH_LONG).show()
         })
-        root.addView(Ui.label(this, "Lua files are stored privately inside Zenith'L. This starter does not inject code into Growtopia."))
-        setContentView(root)
+        setContentView(Ui.scroll(this, root))
     }
 
-    private fun enableOverlay() {
+    private fun setupAutoOverlay() {
         if (!Settings.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            Toast.makeText(this, "Allow display over other apps, then return to Zenith'L.", Toast.LENGTH_LONG).show()
-        } else {
-            startService(Intent(this, OverlayService::class.java))
-            Toast.makeText(this, "Floating button enabled.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Izinkan tampil di atas aplikasi lain, lalu tekan setup lagi.", Toast.LENGTH_LONG).show()
+            return
         }
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        Toast.makeText(this, "Aktifkan Zenith'L App Watcher di Accessibility agar overlay muncul saat Growtopia dibuka.", Toast.LENGTH_LONG).show()
     }
 
     private fun launchGrowtopia() {
         val intent = packageManager.getLaunchIntentForPackage("com.rtsoft.growtopia")
-        if (intent == null) Toast.makeText(this, "Growtopia is not found. Install the official game first.", Toast.LENGTH_LONG).show()
-        else startActivity(intent)
+        if (intent == null) Toast.makeText(this, "Growtopia tidak ditemukan. Instal game resmi terlebih dahulu.", Toast.LENGTH_LONG).show()
+        else {
+            if (Settings.canDrawOverlays(this)) startService(Intent(this, OverlayService::class.java))
+            startActivity(intent)
+        }
     }
 }
