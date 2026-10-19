@@ -14,7 +14,12 @@ class EventBus(val sessionId: String) {
         return id
     }
     fun remove(id: Long) { subscriptions.remove(id) }
-    fun removeScript(scriptId: String) { subscriptions.entries.removeIf { it.value.scriptId == scriptId } }
+    fun removeScript(scriptId: String) {
+        val iterator = subscriptions.entries.iterator()
+        while (iterator.hasNext()) {
+            if (iterator.next().value.scriptId == scriptId) iterator.remove()
+        }
+    }
     fun clear() { subscriptions.clear() }
     fun post(event: SessionEvent<Any?>) {
         require(event.sessionId == sessionId) { "Event ${event.name} belongs to ${event.sessionId}, not $sessionId" }
