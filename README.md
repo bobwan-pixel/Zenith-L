@@ -14,7 +14,7 @@ The GL names and shapes are tracked against a community-maintained reference, no
 
 ## Build
 
-Install JDK 17, Android SDK Platform 35, Android NDK `27.2.12479018`, and CMake `3.22.1`. The checked-in Gradle Wrapper downloads Gradle 8.9. Then run:
+Install JDK 17, Android SDK Platform 35, Android NDK `27.2.12479018`, and CMake `3.22.1`. Android support starts at API 24 (Android 7.0) because the Google Identity Credential Manager library requires it. The checked-in Gradle Wrapper downloads Gradle 8.9. Then run:
 
 ```sh
 ./gradlew testDebugUnitTest assembleDebug

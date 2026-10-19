@@ -14,7 +14,8 @@ android {
 
     defaultConfig {
         applicationId 'id.zenithl.launcher'
-        minSdk 23
+        // googleid:1.2.1 (Credential Manager Google ID) requires Android API 24.
+        minSdk 24
         targetSdk 28
         versionCode 4
         versionName '0.4.0'
