@@ -1,6 +1,6 @@
 package id.zenithl.launcher.api
 
-enum class ApiStatus { IMPLEMENTED, PARTIAL, INTERFACE_ONLY, NOT_IMPLEMENTED }
+enum class ApiStatus { IMPLEMENTED, PARTIAL, INTERFACE_ONLY, NOT_IMPLEMENTED, UNAVAILABLE }
 data class ApiParameter(val name: String, val type: String, val optional: Boolean = false)
 data class ApiDefinition(
     val name: String,

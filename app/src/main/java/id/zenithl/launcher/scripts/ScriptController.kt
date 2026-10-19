@@ -24,6 +24,7 @@ class ScriptController(private val manager: ScriptManager) : AutoCloseable {
     fun pause(sessionId: String, callback: (Result<Unit>) -> Unit) = submit(callback) { manager.pause(sessionId) }
     fun resume(sessionId: String, callback: (Result<Unit>) -> Unit) = submit(callback) { manager.resume(sessionId) }
     fun stop(sessionId: String, callback: (Result<Unit>) -> Unit) = submit(callback) { manager.stop(sessionId) }
+    fun stopAll(callback: (Result<Unit>) -> Unit) = submit(callback) { manager.stopAll() }
     private fun <T> submit(callback: (Result<T>) -> Unit, action: () -> T) { io.execute { val result = runCatching(action); main.post { callback(result) } } }
     override fun close() { io.shutdown() }
 }

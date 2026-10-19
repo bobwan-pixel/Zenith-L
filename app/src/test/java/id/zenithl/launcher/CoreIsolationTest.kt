@@ -22,6 +22,16 @@ import id.zenithl.launcher.scripts.ScriptRepository
 import id.zenithl.launcher.scripts.ScriptState
 import id.zenithl.launcher.sessions.BotManager
 import id.zenithl.launcher.sessions.BotProfile
+import id.zenithl.launcher.accounts.AccountManager
+import id.zenithl.launcher.accounts.AccountProfile
+import id.zenithl.launcher.accounts.AccountProvider
+import id.zenithl.launcher.accounts.AccountRepository
+import id.zenithl.launcher.safety.SafetyEngine
+import id.zenithl.launcher.safety.SafetySeverity
+import id.zenithl.launcher.safety.SafetyMonitor
+import id.zenithl.launcher.safety.WatchdogLimits
+import id.zenithl.launcher.safety.WatchdogState
+import id.zenithl.launcher.modules.ModModuleRegistry
 import id.zenithl.launcher.world.StateResult
 import id.zenithl.launcher.world.WorldSnapshot
 import id.zenithl.launcher.world.WorldState
@@ -131,6 +141,62 @@ class CoreIsolationTest {
         val bridge = UnavailableGameBridge()
         assertEquals(BridgeStatus.UNAVAILABLE, bridge.status)
         assertTrue(bridge.attach("s1").isFailure)
+    }
+
+    @Test fun safetyEmergencyStopIsSessionScopedAndRecordsIncident() {
+        val stopped = mutableListOf<String>()
+        val safety = SafetyEngine(stopSession = stopped::add)
+        safety.record("a", "script-1", SafetySeverity.MEDIUM, "LUA_ERROR", "runtime failed")
+        safety.emergencyStop("a")
+        assertTrue(safety.isStopped("a"))
+        assertFalse(safety.isStopped("b"))
+        assertEquals(listOf("a"), stopped)
+        assertEquals("EMERGENCY_STOP", safety.incidents("a").first().type)
+        assertEquals(0, safety.incidents(sessionId = "b").size)
+    }
+
+    @Test fun watchdogEscalatesAndStopsOnlyTheTimedOutSession() {
+        val engine = SafetyEngine()
+        val stopped = java.util.concurrent.CountDownLatch(1)
+        val actions = mutableListOf<String>()
+        val monitor = SafetyMonitor(
+            engine,
+            WatchdogLimits(warningAfterMs = 5, throttleAfterMs = 15, pauseAfterMs = 30, stopAfterMs = 50, pollIntervalMs = 2),
+            pause = { actions += "pause:$it" },
+            resume = { actions += "resume:$it" },
+            stop = { actions += "stop:$it"; stopped.countDown() },
+        )
+        try {
+            monitor.start("session-a", "script-a")
+            assertTrue(stopped.await(1, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(WatchdogState.TIMEOUT, monitor.state("session-a"))
+            assertTrue(engine.incidents("session-a").any { it.type == "SCRIPT_RUNTIME_WARNING" })
+            assertTrue(engine.incidents("session-a").any { it.type == "SCRIPT_THROTTLED" })
+            assertTrue(engine.incidents("session-a").any { it.type == "SCRIPT_PAUSED_BY_WATCHDOG" })
+            assertTrue(engine.incidents("session-a").any { it.type == "SCRIPT_TIMEOUT" })
+            assertFalse(actions.any { it.endsWith("session-b") })
+        } finally { monitor.close() }
+    }
+
+    @Test fun accountProfilesAreSeparateFromSessionProfilesAndNeverContainSecrets() {
+        val repository = object : AccountRepository {
+            private val rows = linkedMapOf<String, AccountProfile>()
+            override fun all() = rows.values.toList()
+            override fun get(id: String) = rows[id]
+            override fun save(account: AccountProfile) { rows[account.id] = account }
+            override fun delete(id: String) { rows.remove(id) }
+        }
+        val manager = AccountManager(repository)
+        val profile = manager.addProfile("Test account", AccountProvider.LOCAL_DEVELOPMENT)
+        assertEquals("Test account", manager.accounts().single().displayName)
+        assertNull(profile.subject)
+    }
+
+    @Test fun moduleRegistryReportsBridgeDependentFeaturesAsInterfaces() {
+        assertTrue(ModModuleRegistry.categories.size >= 20)
+        assertEquals(id.zenithl.launcher.modules.CapabilityStatus.INTERFACE_ONLY, ModModuleRegistry.module("world-scan")?.status)
+        assertEquals(id.zenithl.launcher.modules.CapabilityStatus.IMPLEMENTED, ModModuleRegistry.module("library")?.status)
+        assertEquals(0, ModModuleRegistry.search("no module like this").size)
     }
 
     private class InMemoryScripts : ScriptRepository {

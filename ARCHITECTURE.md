@@ -14,6 +14,8 @@ SQLite repositories · Logger · session EventBus · GameBridge interface
 LuaExecutionEngine → JNI → native Lua 5.4.9
 ```
 
+`ModModuleRegistry` supplies category/module metadata to the mobile module browser and compact overlay panel. Safety monitoring and catalog loading are lazy; technical diagnostics load on demand. Account profiles store labels/identity metadata only. Google Credential Manager obtains a Google ID token, but the default validator is deliberately `NOT_CONFIGURED` and creates no authenticated account.
+
 The UI does not call JNI or SQLite directly. `ZenithApp` composes services and repositories. Persistent app data is private to the app. Native Lua has one isolated state per session, runs on a bounded worker pool, and has a per-runtime memory limit. Lua base/table/string/math/utf8/coroutine libraries are opened; filesystem, OS, package loading, dynamic code loading, and debug libraries are unavailable.
 
 ## Modules
@@ -28,7 +30,7 @@ Script execution is asynchronous. Stop/pause are checked by a native instruction
 
 `GamePackageManager` reads only the target package's installed version and launch intent. `GameVersionDetector` exposes the installed version; `GameCompatibilityManager` currently returns an unverified profile. Android does not expose another app's foreground lifecycle to an ordinary app, so Zenith'L does not claim to detect game foreground/background or world readiness. Launching Growtopia from Zenith'L can request the overlay service; the floating overlay uses only `SYSTEM_ALERT_WINDOW`. Automatic script scheduling waits for a real Game Bridge lifecycle signal.
 
-`GameBridge` exposes `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `DEGRADED`, and `UNAVAILABLE`; the shipped provider is `UNAVAILABLE`. No service, permission flow, fallback, or runtime code depends on Android Accessibility.
+`GameBridge` exposes `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `DEGRADED`, and `UNAVAILABLE`; the shipped provider is `UNAVAILABLE`. No service, permission flow, fallback, or runtime code depends on Android Accessibility. The Windows desktop app is a separate Swing workspace and restricted Lua process; it does not share account/session state, overlay, or a Game Bridge with Android.
 
 ## Compatibility status
 

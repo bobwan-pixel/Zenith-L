@@ -1,13 +1,14 @@
-# Zenith'L Android Launcher
+# Zenith'L Launcher & Runtime Workspace
 
-Zenith'L is an Android launcher and local Lua scripting workspace for Growtopia. Phase 2 adds a native Lua 5.4.9 runtime, persistent script management, diagnostics, session scoped state interfaces, and a documented compatibility registry.
+Zenith'L is a Growtopia-oriented launcher and scripting workspace targeting Android and Windows. The Android app includes the native Lua 5.4.9 runtime and overlay; the Windows target is a separate desktop workspace with a restricted native Lua runner. Neither target currently ships a real Game Bridge or trusted account backend.
 
 ## Current status
 
-- **Implemented:** Native Lua 5.4.9 execution through Kotlin → JNI → native Lua, asynchronous per session, isolated Lua states, bounded allocator, stop and pause hooks, traceback reporting, selected standard libraries, local script CRUD and metadata, profiles, SQLite persistence, file logs, item database file validation/update/backup/rollback, session scoped event/state abstractions, API browser, and the Phase 1 overlay flow.
-- **Partial:** Package/version detection and compatibility profile reporting; bot/session profile manager UI and persistence; global item database storage/update mechanics. Package inspection does not detect foreground state. Auto-run waits for a supported Game Bridge lifecycle event.
-- **Interface only:** Growtopia Game Bridge, world/player/inventory/object/NPC state providers, game hooks, packet APIs, pathfinding, account login, and operational bot sessions. No game state is fabricated and these calls report unavailable. Android Accessibility is not used.
-- **Not implemented:** GL `Sleep`, `runThread`, and `runCoroutine`; foreground game detection; editor syntax highlighting, undo/redo, and static validation; local Gradle build (Gradle/Android SDK are not installed in this workspace).
+- **Implemented:** Android native Lua 5.4.9 execution through Kotlin → JNI → native Lua, isolated Lua states, bounded allocator, stop/pause hooks, traceback reporting, local script CRUD and metadata, SQLite persistence, file logs, validated global item catalog with staged update/backup/rollback, session-scoped state abstractions, module/API browsers, watchdog foundations, incident persistence, and SYSTEM_ALERT_WINDOW overlay controls. Google sign-in uses Credential Manager when a Web Client ID is configured.
+- **Windows:** Separate Swing desktop workspace, local Lua file editor/import, and native restricted Lua 5.4 runner with memory, instruction, and time budgets. Build/package with Windows JDK 17 and CMake; see [Windows desktop](WINDOWS_DESKTOP.md).
+- **Partial:** Package/version detection and compatibility profile reporting; bot/session profile manager UI and persistence; global local catalog validation/update mechanics; runtime watchdog wall-clock supervision; Windows workspace and isolated Lua runner. Package inspection cannot report another app's foreground lifecycle.
+- **Interface only / unavailable:** Growtopia Game Bridge, world/player/inventory/object/NPC providers, hooks, game APIs, operational bots, remote item-catalog source, trusted Google token validation, and account authentication. No game data or login success is fabricated. Android AccessibilityService is not used.
+- **Not implemented:** GL `Sleep`, `runThread`, and `runCoroutine`; foreground game detection; editor diagnostics/autocomplete; catalog remote manifest fetch; Android/Windows product parity. Windows target has no overlay/Game Bridge/session API.
 
 The GL names and shapes are tracked against a community-maintained reference, not an official compatibility guarantee. See [ZENITH_L_API_REFERENCE.md](ZENITH_L_API_REFERENCE.md).
 
@@ -26,6 +27,8 @@ On a connected/emulated Android device, run native runtime instrumentation tests
 ```
 
 GitHub Actions builds the debug APK, executes JVM tests, and runs native Lua instrumentation tests in an Android emulator.
+
+Google Credential Manager requires a public Web Client ID supplied through Gradle property `googleWebClientId` or environment variable `GOOGLE_WEB_CLIENT_ID`. Even after configuring that ID, sign-in will not create a Zenith account until a trusted token-validation backend is implemented.
 
 ## App data
 

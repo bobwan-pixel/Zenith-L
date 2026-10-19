@@ -19,6 +19,7 @@ data class BotProfile(
     val name: String,
     val world: String? = null,
     val accountLabel: String? = null,
+    val accountId: String? = null,
     val scriptId: String? = null,
     val autoRestart: Boolean = false,
     val restartDelayMs: Long = 5_000,
@@ -91,6 +92,7 @@ class BotManager(private val sessionManager: SessionManager = SessionManager()) 
     } ?: false
     fun pauseBot(id: String): Boolean = sessionManager.get(id)?.let { if (it.state != BotState.RUNNING) false else { it.transition(BotState.PAUSED); true } } ?: false
     fun restartBot(id: String): Boolean = stopBot(id) && startBot(id)
+    fun stopAll(): Int = sessionManager.all().count { stopBot(it.id) }
     fun attachScript(id: String, scriptId: String?) = sessionManager.attachScript(id, scriptId)
     fun removeBot(id: String) = sessionManager.remove(id)
 }

@@ -36,7 +36,7 @@ jobs:
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Run JVM tests and build APK
-        run: ./gradlew testDebugUnitTest assembleDebug
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -77,4 +77,36 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest
+
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Android build configuration
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android configuration required by the shared build
+        shell: pwsh
+        run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Build restricted Lua 5.4 Windows runner
+        run: cmake -S desktop/native -B desktop/native/build -A x64; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cmake --build desktop/native/build --config Release
+        shell: pwsh
+      - name: Test and package Windows desktop app
+        run: .\gradlew.bat :desktop:build :desktop:jpackageWindows
+        shell: pwsh
+      - name: Upload Windows app image
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZenithL-Windows
+          path: desktop/build/windows/ZenithL
+          if-no-files-found: error
           

@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.EditText
+import android.widget.FrameLayout
 
 internal object Ui {
     const val BG = 0xFF07111F.toInt()
@@ -18,6 +19,8 @@ internal object Ui {
     const val BLUE = 0xFF52B6FF.toInt()
     const val WHITE = 0xFFEAF2FF.toInt()
     const val MUTED = 0xFF9BAAC0.toInt()
+    const val SURFACE = 0xFF14243A.toInt()
+    const val BORDER = 0xFF223853.toInt()
 
     fun page(context: Context): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -27,6 +30,23 @@ internal object Ui {
     fun title(context: Context, value: String, size: Float = 25f) = TextView(context).apply {
         text = value; textSize = size; setTextColor(WHITE); typeface = Typeface.create("sans-serif", Typeface.BOLD)
         setPadding(0, 0, 0, dp(context, 8))
+    }
+    fun section(context: Context, value: String) = TextView(context).apply {
+        text = value; textSize = 12f; setTextColor(BLUE); typeface = Typeface.DEFAULT_BOLD
+        setPadding(0, dp(context, 18), 0, dp(context, 8))
+    }
+    fun card(context: Context, heading: String, detail: String): View = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(context, 16), dp(context, 14), dp(context, 16), dp(context, 12))
+        background = GradientDrawable().apply { setColor(SURFACE); cornerRadius = dp(context, 14).toFloat(); setStroke(dp(context, 1), BORDER) }
+        addView(TextView(context).apply { text = heading; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(WHITE) })
+        addView(TextView(context).apply { text = detail; textSize = 13f; setTextColor(MUTED); setPadding(0, dp(context, 5), 0, 0) })
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(context, 10) }
+    }
+    fun smallButton(context: Context, value: String, action: () -> Unit) = Button(context).apply {
+        text = value; isAllCaps = false; textSize = 12f; setTextColor(WHITE)
+        background = GradientDrawable().apply { setColor(PANEL); cornerRadius = dp(context, 10).toFloat(); setStroke(dp(context, 1), BORDER) }
+        setOnClickListener { action() }
     }
     fun label(context: Context, value: String) = TextView(context).apply {
         text = value; textSize = 14f; setTextColor(MUTED); setPadding(0, dp(context, 3), 0, dp(context, 12))

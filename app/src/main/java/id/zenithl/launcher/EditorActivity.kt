@@ -18,7 +18,7 @@ class EditorActivity : Activity() {
     private lateinit var nameField: EditText
     private lateinit var editor: EditText
 
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); showFiles() }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); container.prepareScripts { result -> result.onSuccess { showFiles() }.onFailure(::showError) } }
 
     private fun showFiles() {
         container.scriptController.list { result -> result.onSuccess { scripts ->

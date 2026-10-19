@@ -1,0 +1,37 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+    id 'application'
+}
+
+kotlin { jvmToolchain(17) }
+application { mainClass = 'id.zenithl.desktop.DesktopMainKt' }
+
+tasks.named('installDist') {
+    doLast {
+        def runner = file('native/build/Release/zenith-lua.exe')
+        if (runner.isFile()) copy { from runner; into file("${destinationDir}/lib") }
+    }
+}
+
+tasks.register('jpackageWindows', Exec) {
+    group = 'distribution'
+    description = 'Builds a self-contained Windows app image (requires Windows JDK and native runner build).'
+    dependsOn tasks.named('installDist')
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isWindows() }
+    doFirst {
+        def runner = file('native/build/Release/zenith-lua.exe')
+        if (!runner.isFile()) throw new GradleException('Build desktop/native with CMake before jpackageWindows.')
+        commandLine "${System.getenv('JAVA_HOME')}\\bin\\jpackage.exe", '--type', 'app-image', '--name', "ZenithL",
+            '--input', file('build/install/desktop/lib').absolutePath, '--main-jar', 'desktop.jar',
+            '--main-class', 'id.zenithl.desktop.DesktopMainKt', '--dest', file('build/windows').absolutePath
+    }
+}
+
+tasks.register('windowsPackageInfo') {
+    group = 'distribution'
+    description = 'Reports the Windows desktop packaging prerequisites.'
+    doLast {
+        println 'Windows desktop UI: JVM/Swing. Lua runner: build desktop/native with CMake for Windows x64.'
+        println 'Game Bridge and account authentication are unavailable on this target.'
+    }
+}

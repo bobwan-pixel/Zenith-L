@@ -4,11 +4,13 @@ import id.zenithl.launcher.logging.LogEntry
 import id.zenithl.launcher.logging.LogLevel
 import id.zenithl.launcher.logging.Logger
 import id.zenithl.launcher.lua.LuaExecutionEngine
+import id.zenithl.launcher.safety.ScriptWatchdog
+import id.zenithl.launcher.safety.WatchdogState
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-enum class ScriptState { DISABLED, ENABLED, STARTING, RUNNING, PAUSED, STOPPING, ERROR }
+enum class ScriptState { DISABLED, ENABLED, STARTING, RUNNING, PAUSED, STOPPING, ERROR, TIMEOUT }
 data class ScriptProfile(val values: Map<String, String> = emptyMap())
 data class ScriptRecord(
     val id: String = UUID.randomUUID().toString(),
@@ -39,11 +41,13 @@ class ScriptManager(
     private val workspace: File,
     private val engine: LuaExecutionEngine,
     private val logger: Logger,
+    private val watchdog: ScriptWatchdog? = null,
 ) {
     private data class ActiveRun(val scriptId: String, val token: String = UUID.randomUUID().toString())
     private val running = ConcurrentHashMap<String, ActiveRun>() // session -> isolated run
 
     fun list(): List<ScriptRecord> = repository.all()
+    fun stopAll() { running.keys.toList().forEach(::stop) }
     fun search(query: String): List<ScriptRecord> = list().filter { it.name.contains(query, true) }
     fun sort(favoritesFirst: Boolean = false): List<ScriptRecord> = list().sortedWith(compareByDescending<ScriptRecord> { favoritesFirst && it.favorite }.thenBy { it.name.lowercase() })
 
@@ -116,6 +120,7 @@ class ScriptManager(
         check(source.isNotBlank()) { "Script is empty" }
         val active = ActiveRun(id)
         running[sessionId] = active
+        watchdog?.start(sessionId, id)
         saveState(id, ScriptState.STARTING, error = null)
         engine.execute(sessionId, id, source, script.name, object : LuaExecutionEngine.Listener {
             override fun onStarted() {
@@ -123,13 +128,20 @@ class ScriptManager(
                 update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
                 logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
             }
-            override fun onCompleted() { finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}") }
-            override fun onStopped() { finishIfCurrent(sessionId, active, if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED, "Script stopped: ${script.name}") }
+            override fun onCompleted() { watchdog?.complete(sessionId); finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}") }
+            override fun onStopped() {
+                val timedOut = watchdog?.state(sessionId) == WatchdogState.TIMEOUT
+                watchdog?.complete(sessionId, if (timedOut) WatchdogState.TIMEOUT else WatchdogState.STOPPED)
+                finishIfCurrent(sessionId, active, if (timedOut) ScriptState.TIMEOUT else if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED,
+                    if (timedOut) "Script exceeded watchdog limit: ${script.name}" else "Script stopped: ${script.name}")
+            }
             override fun onError(trace: String) {
                 if (running[sessionId] != active) return
                 val line = Regex("\\.lua:(\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
                 val error = ScriptError(script.name, script.path, line, trace.lineSequence().firstOrNull().orEmpty(), trace, System.currentTimeMillis(), sessionId)
-                saveState(id, ScriptState.ERROR, error.toJson())
+                val timeout = trace.contains("runtime budget", ignoreCase = true) || watchdog?.state(sessionId) == WatchdogState.TIMEOUT
+                watchdog?.complete(sessionId, if (timeout) WatchdogState.TIMEOUT else WatchdogState.ERROR)
+                saveState(id, if (timeout) ScriptState.TIMEOUT else ScriptState.ERROR, error.toJson())
                 running.remove(sessionId, active)
                 logger.log(LogEntry(level = LogLevel.ERROR, component = "LuaRuntime", message = error.message, scriptId = id, sessionId = sessionId, throwable = error.stackTrace))
             }
@@ -139,16 +151,19 @@ class ScriptManager(
     fun pause(sessionId: String) {
         val id = running[sessionId]?.scriptId ?: return
         engine.pause(sessionId)
+        watchdog?.setPaused(sessionId, true)
         saveState(id, ScriptState.PAUSED)
     }
     fun resume(sessionId: String) {
         val id = running[sessionId]?.scriptId ?: return
         engine.resume(sessionId)
+        watchdog?.setPaused(sessionId, false)
         saveState(id, ScriptState.RUNNING)
     }
     fun stop(sessionId: String) {
         val id = running[sessionId]?.scriptId ?: return
         saveState(id, ScriptState.STOPPING)
+        watchdog?.setPaused(sessionId, true)
         engine.stop(sessionId)
     }
     @Synchronized fun restart(id: String, sessionId: String) {

@@ -19,8 +19,13 @@ class ScriptScheduler(private val manager: ScriptManager, private val store: Sch
     private val worker = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "zenith-scheduler") }
     private val rules = java.util.concurrent.CopyOnWriteArrayList<ScheduleRule>()
     private val delayed = java.util.concurrent.ConcurrentHashMap<String, ScheduledFuture<*>>()
-    init { rules.addAll(store?.load().orEmpty()) }
+    init { worker.execute { rules.addAll(store?.load().orEmpty()) } }
     fun replaceRules(newRules: List<ScheduleRule>) { require(newRules.all { it.delayMs >= 0 }); rules.clear(); rules.addAll(newRules); store?.save(newRules) }
+    fun cancelAll() { delayed.values.forEach { it.cancel(false) }; delayed.clear() }
+    fun cancelSession(sessionId: String) {
+        val prefix = "$sessionId:"
+        delayed.keys.filter { it.startsWith(prefix) }.forEach { key -> delayed.remove(key)?.cancel(false) }
+    }
     fun onGameBridgeReady(sessionId: String) = dispatch(SchedulerTrigger.GAME_BRIDGE_READY, sessionId)
     fun onSessionCreated(sessionId: String) = dispatch(SchedulerTrigger.SESSION_CREATED, sessionId)
     fun onWorldReady(sessionId: String) = dispatch(SchedulerTrigger.WORLD_READY, sessionId)
@@ -42,7 +47,7 @@ class ScriptScheduler(private val manager: ScriptManager, private val store: Sch
         delayed.remove(key)?.cancel(false)
         delayed[key] = worker.schedule({ delayed.remove(key); runCatching { manager.run(rule.scriptId, sessionId) } }, rule.delayMs, TimeUnit.MILLISECONDS)
     }
-    override fun close() { delayed.values.forEach { it.cancel(true) }; delayed.clear(); worker.shutdownNow() }
+    override fun close() { cancelAll(); worker.shutdownNow() }
 }
 
 class CrashRecovery(private val manager: ScriptManager) {
