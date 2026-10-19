@@ -1,8 +1,10 @@
 #include <jni.h>
 #include <android/log.h>
+extern "C" {
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+}
 
 #include <atomic>
 #include <algorithm>
