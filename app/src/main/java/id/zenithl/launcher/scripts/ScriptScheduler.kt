@@ -59,7 +59,11 @@ class CrashRecovery(private val manager: ScriptManager) {
         restartSession: (String) -> Unit,
     ): Boolean {
         if (!profile.autoRestart) return false
-        val count = attempts.merge(sessionId, 1, Int::plus) ?: 1
+        val count = synchronized(attempts) {
+            val next = (attempts[sessionId] ?: 0) + 1
+            attempts[sessionId] = next
+            next
+        }
         if (count > profile.maxRestartCount.coerceAtLeast(0)) return false
         schedule(profile.restartDelayMs.coerceAtLeast(0)) { manager.closeSession(sessionId); restartSession(sessionId) }
         return true

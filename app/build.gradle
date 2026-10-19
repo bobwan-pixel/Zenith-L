@@ -15,7 +15,7 @@ android {
     defaultConfig {
         applicationId 'id.zenithl.launcher'
         minSdk 23
-        targetSdk 28
+        targetSdk 33
         versionCode 4
         versionName '0.4.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
