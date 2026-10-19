@@ -171,7 +171,6 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstri
     if (runtime == nullptr || runtime->state == nullptr) return env->NewStringUTF("Runtime not initialized");
     const std::string code = toString(env, source);
     const std::string name = toString(env, chunkName);
-    runtime->control.store(Control::Running, std::memory_order_relaxed);
     lua_sethook(runtime->state, instructionHook, LUA_MASKCOUNT, 1000);
     int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
     if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);

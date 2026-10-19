@@ -39,6 +39,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     check(NativeLua.nativeCreate(sessionId)) { "Could not initialize Lua 5.4.9 state for session $sessionId" }
                     session.created.set(true)
                 }
+                NativeLua.nativeControl(sessionId, 0)
                 listener.onStarted()
                 val error = NativeLua.nativeExecute(sessionId, source, "@$chunkName")
                 when {

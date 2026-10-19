@@ -51,7 +51,7 @@ class LuaRuntimeInstrumentedTest {
             engine.execute("pause", "finite", "local total=0; for i=1,20000000 do total=total+i end", "Pause.lua", listener(started, completed, null))
             assertTrue(started.await(5, TimeUnit.SECONDS))
             engine.pause("pause")
-            Thread.sleep(150)
+            assertFalse("Lua continued while paused", completed.await(250, TimeUnit.MILLISECONDS))
             engine.resume("pause")
             assertTrue("Lua script did not resume and finish", completed.await(10, TimeUnit.SECONDS))
         } finally { engine.close("pause") }
