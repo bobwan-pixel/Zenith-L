@@ -8,10 +8,13 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Zenith'L"
+        android:name=".ZenithApp"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
         <activity android:name=".EditorActivity" android:exported="false" />
+        <activity android:name=".BotManagerActivity" android:exported="false" />
+        <activity android:name=".ApiBrowserActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

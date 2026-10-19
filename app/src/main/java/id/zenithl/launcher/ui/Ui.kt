@@ -1,4 +1,4 @@
-package id.zenithl.launcher
+package id.zenithl.launcher.ui
 
 import android.content.Context
 import android.graphics.Color

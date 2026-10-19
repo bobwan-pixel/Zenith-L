@@ -1,51 +1,41 @@
-# Zenith'L Android Starter (v0.2.0)
+# Zenith'L Android Launcher
 
-Minimal Kotlin Android launcher and floating overlay for a Growtopia-focused Lua workspace. Designed for a Windows PC with 4 GB RAM, JDK 17, and a free Android SDK installation.
+Zenith'L is an Android launcher and local Lua scripting workspace for Growtopia. Phase 2 adds a native Lua 5.4.9 runtime, persistent script management, diagnostics, session scoped state interfaces, and a documented compatibility registry.
 
-## Implemented
-- Dark main screen branded Zenith'L.
-- Launches the installed Growtopia app when its package is `com.rtsoft.growtopia`.
-- Overlay permission flow and movable floating `Z'` button.
-- App Watcher accessibility service shows the floating button while Growtopia is in the foreground.
-- Per-script auto-run selection is stored locally and shown in the main screen and overlay.
-- Play/Pause controls explain that execution is unavailable until a Lua runtime is added.
-- Custom launcher icon made from the supplied Zenith'L image.
-- Floating panel opens the local Lua workspace.
-- Creates, lists, edits, saves and deletes `.lua` files in app-private storage.
-- Filename validation.
+## Current status
 
-## Not implemented yet
-- Lua 5.4 execution engine (no NDK/JNI dependency added yet).
-- In-game Growtopia APIs/hooks, game state access or script injection.
-- Selected auto-run scripts are not executed until a supported runtime exists.
-- Actual MAC/GID/RID modification. Android does not allow a normal app to freely change the device Wi-Fi MAC address; game identifiers need separate verification.
-- Syntax highlighting and import/export through Android Storage Access Framework.
+- **Implemented:** Native Lua 5.4.9 execution through Kotlin → JNI → native Lua, asynchronous per session, isolated Lua states, bounded allocator, stop and pause hooks, traceback reporting, selected standard libraries, local script CRUD and metadata, profiles, SQLite persistence, file logs, item database file validation/update/backup/rollback, session scoped event/state abstractions, API browser, and the Phase 1 overlay flow.
+- **Partial:** Script scheduling and auto-run after Growtopia foreground detection; bot/session profile manager UI and persistence; item database storage/update mechanics. Scheduling responds to app detection and session lifecycle; world-ready and script dependency events require a real bridge or explicit caller.
+- **Interface only:** Growtopia game bridge, world/player/inventory/object/NPC state providers, game hooks, packet APIs, pathfinding, and operational bot sessions. No game state is fabricated and these calls report unavailable.
+- **Not implemented:** GL `Sleep`, `runThread`, and `runCoroutine`; editor syntax highlighting, undo/redo, and static validation; automated Gradle build locally (Gradle/Android SDK are not installed in this workspace).
 
-## Requirements
-- JDK 17
-- Android SDK Platform 35 and Build Tools 35.0.0
-- Gradle 8.9 (or use wrapper generated below)
+The GL names and shapes are tracked against a community-maintained reference, not an official compatibility guarantee. See [ZENITH_L_API_REFERENCE.md](ZENITH_L_API_REFERENCE.md).
 
-## Build on Windows CMD
+## Build
 
-```bat
-cd C:\Users\Acer\Documents\project
-```
-Extract this folder as `ZenithL`, then:
+Install JDK 17, Android SDK Platform 35, Android NDK `27.2.12479018`, CMake `3.22.1`, and Gradle 8.9. Then run:
 
-```bat
-cd ZenithL
-gradle wrapper --gradle-version 8.9
-gradlew.bat assembleDebug
+```sh
+gradle testDebugUnitTest assembleDebug
 ```
 
-APK output:
-`app\build\outputs\apk\debug\app-debug.apk`
+On a connected/emulated Android device, run native runtime instrumentation tests with:
 
-If `gradle` is not recognized, install Gradle 8.9 or use Android Studio once to generate the Gradle wrapper. The first build needs internet to download Gradle and Android Gradle Plugin; subsequent builds can use cached dependencies.
+```sh
+gradle connectedDebugAndroidTest
+```
 
-## Install
-Copy the APK to Android and install it. Install the official Growtopia app separately. In Zenith'L, tap **Set up auto floating menu**, allow **Display over other apps**, then enable **Zenith'L App Watcher** under Android Accessibility settings. Android requires these one-time permissions for foreground detection and the overlay. The watcher reads window change events and does not retrieve screen content.
+GitHub Actions builds the debug APK, executes JVM tests, and runs native Lua instrumentation tests in an Android emulator.
 
-## Storage
-Scripts are kept inside Zenith'L app-private storage (`files/scripts`). They are not directly visible to other apps. Import/export via Android's document picker is a planned feature.
+## App data
+
+Scripts, profiles, session profiles, application preferences, scheduler rules, item database metadata, and diagnostic events use app-private storage and SQLite. The item database is an updateable validated TSV file; Zenith'L does not bundle a fabricated full Growtopia item list. Lua source/license attribution is in `app/src/main/cpp/lua-5.4.9/`.
+
+## Documentation
+
+- [Architecture](ARCHITECTURE.md)
+- [Lua scripts and lifecycle](SCRIPT_SYSTEM.md)
+- [API reference and status](ZENITH_L_API_REFERENCE.md)
+- [Multi-session foundation](MULTI_SESSION.md)
+- [Item database](DATABASE.md)
+- [Troubleshooting](TROUBLESHOOTING.md)

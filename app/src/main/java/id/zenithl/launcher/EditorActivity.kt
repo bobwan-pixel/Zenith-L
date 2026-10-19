@@ -2,69 +2,85 @@ package id.zenithl.launcher
 
 import android.app.Activity
 import android.os.Bundle
-import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
-import java.io.File
+import id.zenithl.launcher.scripts.ScriptRecord
+import id.zenithl.launcher.ui.Ui
 
 class EditorActivity : Activity() {
-    private lateinit var root: LinearLayout
-    private lateinit var editor: android.widget.EditText
-    private lateinit var fileName: android.widget.EditText
-    private var currentFile: File? = null
+    private val container get() = (application as ZenithApp).container
+    private var currentId: String? = null
+    private lateinit var nameField: EditText
+    private lateinit var editor: EditText
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        showFiles()
-    }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); showFiles() }
 
     private fun showFiles() {
-        root = Ui.page(this)
-        root.addView(Ui.title(this, "Lua Workspace"))
-        root.addView(Ui.label(this, "FILE EXPLORER  /  ${ScriptFiles.list(this).size} FILE(S)"))
-        root.addView(Ui.button(this, "+ NEW SCRIPT") { showEditor(null) })
-        val files = ScriptFiles.list(this)
-        if (files.isEmpty()) root.addView(Ui.label(this, "Belum ada file. Tekan + New Script untuk membuat file pertama."))
-        files.forEach { file ->
-            root.addView(Ui.button(this, "${file.name}   ·   ${file.length()} B") { showEditor(file) })
-        }
-        root.addView(Ui.button(this, "BACK TO ZENITH'L") { finish() })
-        setContentView(Ui.scroll(this, root))
+        container.scriptController.list { result -> result.onSuccess { scripts ->
+            val root = Ui.page(this)
+            root.addView(Ui.title(this, "Script Workspace"))
+            root.addView(Ui.label(this, "Persistent metadata • ${scripts.size} scripts"))
+            root.addView(Ui.button(this, "+ NEW SCRIPT") { showEditor(null, null) })
+            scripts.forEach { script ->
+                root.addView(Ui.button(this, "${if (script.favorite) "★ " else ""}${script.name}.lua  •  ${script.state}") { open(script.id) })
+            }
+            root.addView(Ui.button(this, "API REFERENCE") { startActivity(android.content.Intent(this, ApiBrowserActivity::class.java)) })
+            root.addView(Ui.button(this, "BACK TO ZENITH'L") { finish() })
+            setContentView(Ui.scroll(this, root))
+        }.onFailure { Toast.makeText(this, it.message, Toast.LENGTH_LONG).show() } }
     }
 
-    private fun showEditor(file: File?) {
-        currentFile = file
-        root = Ui.page(this)
-        root.addView(Ui.title(this, if (file == null) "New Lua Script" else file.name))
-        root.addView(Ui.label(this, "Local editor • Lua engine not connected yet"))
-        fileName = Ui.edit(this, "example.lua").apply { setText(file?.name ?: "") }
-        root.addView(fileName)
-        editor = Ui.edit(this, "-- Write Lua code here\nprint('Hello from Zenith\'L')", true)
-        if (file != null) editor.setText(runCatching { file.readText() }.getOrDefault(""))
-        else editor.setText("-- ${"Zenith'L"}\nprint('Hello from Zenith\\'L')\n")
+    private fun open(id: String) {
+        container.scriptController.open(id) { result -> result.onSuccess { (script, source) -> showEditor(script, source) }
+            .onFailure { Toast.makeText(this, "Cannot open script: ${it.message}", Toast.LENGTH_LONG).show() } }
+    }
+
+    private fun showEditor(script: ScriptRecord?, source: String?) {
+        currentId = script?.id
+        val root = Ui.page(this)
+        root.addView(Ui.title(this, script?.name ?: "New Lua Script"))
+        root.addView(Ui.label(this, "Lua 5.4.9 • disabled I/O, OS, package loading • GL bridge APIs remain unavailable"))
+        nameField = Ui.edit(this, "example.lua").apply { setText(script?.name?.plus(".lua") ?: "") }
+        root.addView(nameField)
+        editor = Ui.edit(this, "-- Lua 5.4 script", true).apply { setText(source ?: "-- Zenith'L Lua 5.4.9\nprint('Hello from Zenith\\'L')\n") }
         root.addView(editor, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(Ui.button(this, "SAVE SCRIPT") { saveScript() })
-        root.addView(Ui.button(this, "DELETE SCRIPT") {
-            val target = currentFile
-            if (target != null && target.exists() && target.delete()) {
-                Toast.makeText(this, "Script deleted", Toast.LENGTH_SHORT).show(); showFiles()
-            } else Toast.makeText(this, "Save the script first, or file not found.", Toast.LENGTH_SHORT).show()
-        })
+        if (script != null) {
+            root.addView(Ui.button(this, if (script.enabled) "DISABLE SCRIPT" else "ENABLE SCRIPT") {
+                container.scriptController.setEnabled(script.id, !script.enabled) { result -> result.onSuccess { open(script.id) }.onFailure { showError(it) } }
+            })
+            root.addView(Ui.button(this, if (script.favorite) "UNFAVORITE" else "ADD FAVORITE") {
+                container.scriptController.setFavorite(script.id, !script.favorite) { result -> result.onSuccess { open(script.id) }.onFailure { showError(it) } }
+            })
+            root.addView(Ui.button(this, "DUPLICATE SCRIPT") {
+                container.scriptController.duplicate(script.id, "${script.name} copy") { result -> result.onSuccess { showFiles() }.onFailure { showError(it) } }
+            })
+            root.addView(Ui.button(this, "▶ PLAY") { runScript(script.id) })
+            root.addView(Ui.button(this, "Ⅱ PAUSE") { container.scriptController.pause(SESSION_ID) { result -> result.onFailure { showError(it) } } })
+            root.addView(Ui.button(this, "▶ RESUME") { container.scriptController.resume(SESSION_ID) { result -> result.onFailure { showError(it) } } })
+            root.addView(Ui.button(this, "■ STOP") { container.scriptController.stop(SESSION_ID) { result -> result.onSuccess { Toast.makeText(this, "Stop requested", Toast.LENGTH_SHORT).show() }.onFailure { showError(it) } } })
+            root.addView(Ui.button(this, "DELETE SCRIPT") {
+                container.scriptController.delete(script.id) { result -> result.onSuccess { Toast.makeText(this, "Script deleted", Toast.LENGTH_SHORT).show(); showFiles() }.onFailure { showError(it) } }
+            })
+        }
         root.addView(Ui.button(this, "BACK TO FILE LIST") { showFiles() })
         setContentView(root)
     }
 
     private fun saveScript() {
-        val name = fileName.text.toString().trim().let { if (it.endsWith(".lua", true)) it else "$it.lua" }
-        val target = ScriptFiles.safeFile(this, name)
-        if (target == null) {
-            Toast.makeText(this, "Filename tidak valid. Gunakan huruf, angka, spasi, titik, _ atau - dan akhiri .lua", Toast.LENGTH_LONG).show()
-            return
+        val name = nameField.text.toString().trim().removeSuffix(".lua")
+        container.scriptController.save(currentId, name, editor.text.toString()) { result ->
+            result.onSuccess { saved -> currentId = saved.id; Toast.makeText(this, "Saved: ${saved.name}.lua", Toast.LENGTH_SHORT).show() }
+                .onFailure { showError(it) }
         }
-        runCatching { target.writeText(editor.text.toString()); currentFile = target }
-            .onSuccess { Toast.makeText(this, "Saved: ${target.name}", Toast.LENGTH_SHORT).show() }
-            .onFailure { Toast.makeText(this, "Save failed: ${it.message}", Toast.LENGTH_LONG).show() }
     }
+
+    private fun runScript(id: String) {
+        container.scriptController.run(id, SESSION_ID) { result -> result.onSuccess { Toast.makeText(this, "Lua script started", Toast.LENGTH_SHORT).show() }.onFailure { showError(it) } }
+    }
+
+    private fun showError(error: Throwable) = Toast.makeText(this, error.message ?: "Operation failed", Toast.LENGTH_LONG).show()
+
+    private companion object { const val SESSION_ID = AppContainer.MAIN_SESSION_ID }
 }
