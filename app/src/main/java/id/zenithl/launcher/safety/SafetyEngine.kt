@@ -28,7 +28,7 @@ class SafetyEngine(
 ) {
     private val sequence = java.util.concurrent.atomic.AtomicLong()
     private val incidents = ConcurrentLinkedDeque<SafetyIncident>()
-    private val stopped = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val stopped = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     init { require(maxIncidents > 0) }
 
@@ -44,17 +44,17 @@ class SafetyEngine(
     /** Stops the selected session only. Other sessions are not affected. */
     fun emergencyStop(sessionId: String, reason: String = "Manual emergency stop") {
         require(sessionId.isNotBlank())
-        stopped.add(sessionId)
+        stopped[sessionId] = true
         record(sessionId, null, SafetySeverity.CRITICAL, "EMERGENCY_STOP", reason)
         stopSession(sessionId)
     }
 
     fun resetEmergencyStop(sessionId: String) { stopped.remove(sessionId) }
-    fun isStopped(sessionId: String) = sessionId in stopped
+    fun isStopped(sessionId: String) = stopped.containsKey(sessionId)
     fun incidents(sessionId: String? = null, scriptId: String? = null): List<SafetyIncident> = incidents.filter {
         (sessionId == null || it.sessionId == sessionId) && (scriptId == null || it.scriptId == scriptId)
     }
-    fun snapshot() = SafetySnapshot(stopped.toSet(), incidents.size, incidents.peekFirst())
+    fun snapshot() = SafetySnapshot(stopped.keys.toSet(), incidents.size, incidents.peekFirst())
 }
 
 enum class WatchdogState { RUNNING, PAUSED, STOPPING, STOPPED, ERROR, TIMEOUT, CRASHED }
