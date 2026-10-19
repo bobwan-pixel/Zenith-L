@@ -46,7 +46,7 @@ class FileLogger(private val file: File, private val maxBytes: Long = 1_048_576L
         .filter { level == null || it.level == level }
         .filter { scriptId == null || it.scriptId == scriptId }
         .filter { sessionId == null || it.sessionId == sessionId }
-        .takeLast(limit.coerceIn(1, 5000)).toList()
+        .toList().takeLast(limit.coerceIn(1, 5000))
 
     private fun encode(value: String): String = Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP or Base64.URL_SAFE)
     private fun decode(line: String): LogEntry? = runCatching {
@@ -64,5 +64,5 @@ class MemoryLogger : Logger {
         .filter { level == null || it.level == level }
         .filter { scriptId == null || it.scriptId == scriptId }
         .filter { sessionId == null || it.sessionId == sessionId }
-        .takeLast(limit.coerceIn(1, 5000)).toList()
+        .toList().takeLast(limit.coerceIn(1, 5000))
 }

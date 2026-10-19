@@ -111,12 +111,12 @@ class ScriptManager(
     @Synchronized fun run(id: String, sessionId: String) {
         val script = required(id)
         check(script.enabled) { "Disabled scripts cannot be run" }
-        check(sessionId !in running) { "A script is already active for session $sessionId" }
+        check(!running.containsKey(sessionId)) { "A script is already active for session $sessionId" }
         val source = File(script.path).readText()
         check(source.isNotBlank()) { "Script is empty" }
         val active = ActiveRun(id)
         running[sessionId] = active
-        saveState(id, ScriptState.STARTING, lastError = null)
+        saveState(id, ScriptState.STARTING, error = null)
         engine.execute(sessionId, id, source, script.name, object : LuaExecutionEngine.Listener {
             override fun onStarted() {
                 if (running[sessionId] != active) return
@@ -137,17 +137,17 @@ class ScriptManager(
     }
 
     fun pause(sessionId: String) {
-        val id = running[sessionId] ?: return
+        val id = running[sessionId]?.scriptId ?: return
         engine.pause(sessionId)
         saveState(id, ScriptState.PAUSED)
     }
     fun resume(sessionId: String) {
-        val id = running[sessionId] ?: return
+        val id = running[sessionId]?.scriptId ?: return
         engine.resume(sessionId)
         saveState(id, ScriptState.RUNNING)
     }
     fun stop(sessionId: String) {
-        val id = running[sessionId] ?: return
+        val id = running[sessionId]?.scriptId ?: return
         saveState(id, ScriptState.STOPPING)
         engine.stop(sessionId)
     }
