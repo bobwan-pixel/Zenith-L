@@ -31,6 +31,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install native build tools
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
@@ -64,6 +66,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install native build tools
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
