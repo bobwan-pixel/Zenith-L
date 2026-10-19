@@ -14,8 +14,7 @@ android {
 
     defaultConfig {
         applicationId 'id.zenithl.launcher'
-        // googleid:1.2.1 (Credential Manager Google ID) requires Android API 24.
-        minSdk 24
+        minSdk 23
         targetSdk 28
         versionCode 4
         versionName '0.4.0'
@@ -44,7 +43,8 @@ android {
 dependencies {
     implementation 'androidx.credentials:credentials:1.6.0'
     implementation 'androidx.credentials:credentials-play-services-auth:1.6.0'
-    implementation 'com.google.android.libraries.identity.googleid:googleid:1.2.1'
+    // Keep Google ID on the Kotlin 2.0-compatible release; 1.2.1 uses Kotlin 2.4 metadata.
+    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
