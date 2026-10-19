@@ -115,9 +115,10 @@ class SQLiteScheduleRuleStore(private val database: AppDatabase) : ScheduleRuleS
         buildList {
             for (index in 0 until array.length()) {
                 val row = array.getJSONObject(index)
+                val trigger = runCatching { SchedulerTrigger.valueOf(row.getString("trigger")) }.getOrNull() ?: continue
                 add(ScheduleRule(
                     scriptId = row.getString("scriptId"),
-                    trigger = SchedulerTrigger.valueOf(row.getString("trigger")),
+                    trigger = trigger,
                     delayMs = row.optLong("delayMs", 0),
                     afterScriptId = row.optString("afterScriptId").takeIf { it.isNotBlank() },
                     enabled = row.optBoolean("enabled", true),

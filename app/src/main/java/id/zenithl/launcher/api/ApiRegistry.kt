@@ -13,19 +13,23 @@ data class ApiDefinition(
 )
 
 object ApiRegistry {
-    const val API_VERSION = "0.3"
-    const val GL_COMPATIBILITY_VERSION = "community-reference-2025-08"
+    const val API_VERSION = "0.4"
+    const val GL_COMPATIBILITY_VERSION = "community-reference-2025-08 (unverified)"
 
     val definitions: List<ApiDefinition> = buildList {
         add(ApiDefinition("Zenith.getVersion", "Return Zenith'L application version.", emptyList(), "string", "Zenith.getVersion()", "Zenith extension", ApiStatus.IMPLEMENTED))
-        add(ApiDefinition("Zenith.getRuntimeInfo", "Return native Lua runtime information.", emptyList(), "table", "Zenith.getRuntimeInfo()", "Zenith extension", ApiStatus.INTERFACE_ONLY))
-        listOf("getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot").forEach { name ->
-            add(ApiDefinition("Zenith.$name", "Multi-session control through BotManager.", emptyList(), "varies", "Zenith.$name(...) -- Lua binding pending", "Zenith extension", ApiStatus.INTERFACE_ONLY))
+        val zenithNames = listOf(
+            "getRuntimeInfo", "getGameInfo", "getGameVersion", "getBridgeStatus", "getSessionInfo", "getSessions",
+            "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot",
+        ) + listOf("world", "player", "inventory", "objects", "npc", "session", "script", "database", "bridge", "diagnostics").map { "$it.*" }
+        zenithNames.forEach { name ->
+            add(ApiDefinition("Zenith.$name", "Zenith runtime extension; requires its Lua adapter/provider.", emptyList(), "varies", "Zenith.$name(...) -- capability status is reported here", "Zenith extension API 0.4", ApiStatus.INTERFACE_ONLY))
         }
         val gl = listOf(
             ApiDefinition("getTile", "Return a tile at world coordinates.", listOf(ApiParameter("x", "integer"), ApiParameter("y", "integer")), "Tile?", "getTile(10, 20)", ApiStatus.INTERFACE_ONLY),
             ApiDefinition("getTiles", "Return tiles from the current world snapshot.", emptyList(), "Tile[]", "getTiles()", ApiStatus.INTERFACE_ONLY),
             ApiDefinition("getWorldName", "Return the current world name.", emptyList(), "string?", "getWorldName()", ApiStatus.INTERFACE_ONLY),
+            ApiDefinition("getWorld", "Return the current session world snapshot.", emptyList(), "World?", "getWorld()", ApiStatus.INTERFACE_ONLY),
             ApiDefinition("getInventory", "Return inventory state for this session.", emptyList(), "InventoryItem[]", "getInventory()", ApiStatus.INTERFACE_ONLY),
             ApiDefinition("getLocal", "Return local player state for this session.", emptyList(), "LocalPlayer?", "getLocal()", ApiStatus.INTERFACE_ONLY),
             ApiDefinition("getPlayerList", "Return players for this session.", emptyList(), "Player[]", "getPlayerList()", ApiStatus.INTERFACE_ONLY),

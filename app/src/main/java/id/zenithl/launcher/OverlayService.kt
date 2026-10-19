@@ -74,6 +74,7 @@ class OverlayService : Service() {
         }
         box.addView(TextView(this).apply { text = "Zenith'L Workspace"; textSize = 18f; setTextColor(Ui.WHITE); setPadding(0,0,0,12) })
         val app = (application as ZenithApp).container
+        box.addView(TextView(this).apply { text = "Session: ${AppContainer.MAIN_SESSION_ID}  •  Bridge: ${app.gameBridge.status}"; textSize = 12f; setTextColor(Ui.MUTED); setPadding(0, 0, 0, 8) })
         val selectedLabel = TextView(this).apply { text = "Loading scripts…"; setTextColor(Ui.MUTED); setPadding(0, 0, 0, 8) }
         box.addView(selectedLabel)
         var selectedScriptId: String? = null
@@ -95,7 +96,7 @@ class OverlayService : Service() {
                         selectedLabel.text = "Selected: ${script.name}"
                     }, insertAt++)
                     box.addView(CheckBox(this).apply {
-                        text = "Auto-run"
+                        text = "Auto-run on Bridge ready"
                         setTextColor(Ui.WHITE)
                         isChecked = script.autoRun
                         setOnCheckedChangeListener { _, checked -> app.scriptController.setAutoRun(script.id, checked) { change -> change.onFailure { Toast.makeText(this@OverlayService, it.message, Toast.LENGTH_LONG).show() } } }

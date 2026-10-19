@@ -24,9 +24,11 @@ Kotlin packages divide scripts, Lua, API compatibility, item data, world/player/
 
 Script execution is asynchronous. Stop/pause are checked by a native instruction hook; Lua errors return tracebacks and are recorded per script/session. Hook registries are session-local and script-owned hooks can be removed together. Session profiles persist independently; starting a live game session currently returns unavailable because the bridge is absent. No credentials or game packets are fabricated or altered.
 
-## Android lifecycle
+## Android game detection and overlay
 
-The accessibility watcher detects Growtopia package foreground changes and informs the scheduler. It does not inspect screen contents. The overlay remains permission-gated and forwards controls to script services. Foreground/background app detection does not prove world readiness or game process health; those require a supported GameBridge.
+`GamePackageManager` reads only the target package's installed version and launch intent. `GameVersionDetector` exposes the installed version; `GameCompatibilityManager` currently returns an unverified profile. Android does not expose another app's foreground lifecycle to an ordinary app, so Zenith'L does not claim to detect game foreground/background or world readiness. Launching Growtopia from Zenith'L can request the overlay service; the floating overlay uses only `SYSTEM_ALERT_WINDOW`. Automatic script scheduling waits for a real Game Bridge lifecycle signal.
+
+`GameBridge` exposes `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `DEGRADED`, and `UNAVAILABLE`; the shipped provider is `UNAVAILABLE`. No service, permission flow, fallback, or runtime code depends on Android Accessibility.
 
 ## Compatibility status
 

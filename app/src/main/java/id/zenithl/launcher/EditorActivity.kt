@@ -1,10 +1,14 @@
 package id.zenithl.launcher
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
+import java.io.ByteArrayOutputStream
 import id.zenithl.launcher.scripts.ScriptRecord
 import id.zenithl.launcher.ui.Ui
 
@@ -22,6 +26,7 @@ class EditorActivity : Activity() {
             root.addView(Ui.title(this, "Script Workspace"))
             root.addView(Ui.label(this, "Persistent metadata • ${scripts.size} scripts"))
             root.addView(Ui.button(this, "+ NEW SCRIPT") { showEditor(null, null) })
+            root.addView(Ui.button(this, "IMPORT LUA FILE") { openLuaPicker() })
             scripts.forEach { script ->
                 root.addView(Ui.button(this, "${if (script.favorite) "★ " else ""}${script.name}.lua  •  ${script.state}") { open(script.id) })
             }
@@ -82,5 +87,49 @@ class EditorActivity : Activity() {
 
     private fun showError(error: Throwable) = Toast.makeText(this, error.message ?: "Operation failed", Toast.LENGTH_LONG).show()
 
-    private companion object { const val SESSION_ID = AppContainer.MAIN_SESSION_ID }
+    private fun openLuaPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/x-lua", "application/octet-stream"))
+        }
+        startActivityForResult(intent, REQUEST_IMPORT_LUA)
+    }
+
+    @Deprecated("Legacy activity result API is supported on the project's minSdk and keeps import self-contained.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_IMPORT_LUA || resultCode != RESULT_OK) return
+        val uri: Uri = data?.data ?: return
+        Thread({
+            val imported = runCatching {
+                val displayName = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                } ?: "imported.lua"
+                require(displayName.endsWith(".lua", ignoreCase = true)) { "Choose a .lua file" }
+                val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        require(output.size() + count <= MAX_IMPORT_BYTES) { "Lua file exceeds 1 MiB" }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: error("Could not read selected file")
+                displayName.substringBeforeLast('.') to bytes.toString(Charsets.UTF_8)
+            }
+            runOnUiThread {
+                imported.onSuccess { (name, source) ->
+                    container.scriptController.save(null, name, source) { result ->
+                        result.onSuccess { Toast.makeText(this, "Imported ${it.name}.lua", Toast.LENGTH_SHORT).show(); showFiles() }
+                            .onFailure(::showError)
+                    }
+                }.onFailure(::showError)
+            }
+        }, "zenith-lua-import").start()
+    }
+
+    private companion object { const val SESSION_ID = AppContainer.MAIN_SESSION_ID; const val REQUEST_IMPORT_LUA = 431; const val MAX_IMPORT_BYTES = 1024 * 1024 }
 }

@@ -1,7 +1,7 @@
 # Zenith'L Lua API Reference
 
-- Zenith API version: `0.3`
-- GL compatibility reference label: `community-reference-2025-08`
+- Zenith API version: `0.4`
+- GL compatibility reference label: `community-reference-2025-08 (unverified)`
 - Baseline: [GrowLauncher community documentation](https://github.com/PowerKuy/Growlauncher-Documentation/blob/main/Readme.md). This is a community reference and may be incomplete or outdated; it is not an official GL contract.
 - Statuses describe Zenith'L implementation, not whether a name exists elsewhere.
 
@@ -22,6 +22,9 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | --- | --- | --- | --- |
 | `Zenith.getVersion()` | → string | IMPLEMENTED | Returns app version. |
 | `Zenith.getRuntimeInfo()` | → table | INTERFACE_ONLY | Metadata entry only; native binding is pending. |
+| `Zenith.getGameInfo()` / `getGameVersion()` | → table / string? | INTERFACE_ONLY | Package detector exists; Lua binding and live bridge state are absent. |
+| `Zenith.getBridgeStatus()` | → string | INTERFACE_ONLY | Bridge reports UNAVAILABLE in this build; Lua binding is pending. |
+| `Zenith.getSessionInfo()` / `getSessions()` | → varies | INTERFACE_ONLY | Session manager exists in Kotlin; Lua binding is pending. |
 | `Zenith.getBots()` | → varies | INTERFACE_ONLY | Kotlin BotManager façade exists; no Lua binding or live sessions. |
 | `Zenith.getBot(id)` | id → varies | INTERFACE_ONLY | Lua binding pending. |
 | `Zenith.startBot(id)` | id → varies | INTERFACE_ONLY | GameBridge unavailable; session start is refused. |
@@ -30,6 +33,7 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | `Zenith.restartBot(id)` | id → varies | INTERFACE_ONLY | Lua binding pending. |
 | `getTile(x,y)` / `getTiles()` | coordinates / none → Tile / Tile[] | INTERFACE_ONLY | Requires real world snapshots. |
 | `getWorldName()` | none → string? | INTERFACE_ONLY | Requires active game state. |
+| `getWorld()` | none → World? | INTERFACE_ONLY | Requires active game state. |
 | `getInventory()` / `getLocal()` | none → items / player | INTERFACE_ONLY | Session state providers have no game provider. |
 | `getPlayerList()` / `getObjectList()` / `getNPCList()` | none → arrays | INTERFACE_ONLY | Session state providers have no game provider. |
 | `findItemID(name)` / `getItemInfoByID(id)` | name/id → item result | INTERFACE_ONLY | File-backed database exists; Lua binding is pending. |
@@ -39,7 +43,7 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | `Sleep(ms)` | milliseconds → void | NOT_IMPLEMENTED | No cooperative scheduler binding. |
 | `runThread(fn,args?)` / `runCoroutine(fn,args?)` | function → task/thread | NOT_IMPLEMENTED | Coroutine library exists; GL lifecycle adapters do not. |
 
-The runtime exposes only the documented `Zenith.getVersion()` binding from this registry. Entries marked otherwise are not callable GL APIs; attempts produce explicit unavailable errors. No 100% compatibility claim is made.
+The runtime exposes only the documented `Zenith.getVersion()` binding from this registry. Entries marked otherwise are not callable Lua APIs yet; no 100% compatibility claim is made. Item lookup exists in the app-global Kotlin database but is not currently bound into Lua.
 
 ## Object models
 

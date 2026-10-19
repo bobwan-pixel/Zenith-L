@@ -4,7 +4,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-enum class SchedulerTrigger { IMMEDIATE, GROWTOPIA_DETECTED, SESSION_CREATED, WORLD_READY, AFTER_SCRIPT }
+enum class SchedulerTrigger { IMMEDIATE, GAME_BRIDGE_READY, SESSION_CREATED, WORLD_READY, AFTER_SCRIPT }
 data class ScheduleRule(
     val scriptId: String,
     val trigger: SchedulerTrigger,
@@ -21,7 +21,7 @@ class ScriptScheduler(private val manager: ScriptManager, private val store: Sch
     private val delayed = java.util.concurrent.ConcurrentHashMap<String, ScheduledFuture<*>>()
     init { rules.addAll(store?.load().orEmpty()) }
     fun replaceRules(newRules: List<ScheduleRule>) { require(newRules.all { it.delayMs >= 0 }); rules.clear(); rules.addAll(newRules); store?.save(newRules) }
-    fun onGrowtopiaDetected(sessionId: String) = dispatch(SchedulerTrigger.GROWTOPIA_DETECTED, sessionId)
+    fun onGameBridgeReady(sessionId: String) = dispatch(SchedulerTrigger.GAME_BRIDGE_READY, sessionId)
     fun onSessionCreated(sessionId: String) = dispatch(SchedulerTrigger.SESSION_CREATED, sessionId)
     fun onWorldReady(sessionId: String) = dispatch(SchedulerTrigger.WORLD_READY, sessionId)
     fun onScriptFinished(scriptId: String, sessionId: String) =
@@ -31,13 +31,10 @@ class ScriptScheduler(private val manager: ScriptManager, private val store: Sch
         check(record.enabled) { "Disabled scripts cannot be scheduled" }
         schedule(ScheduleRule(scriptId, SchedulerTrigger.IMMEDIATE, delayMs), sessionId)
     }
-    fun runAutoScripts(sessionId: String) {
-        manager.list().filter { it.enabled && it.autoRun }.forEach { schedule(ScheduleRule(it.id, SchedulerTrigger.GROWTOPIA_DETECTED), sessionId) }
-    }
     private fun dispatch(trigger: SchedulerTrigger, sessionId: String) {
         rules.filter { it.enabled && it.trigger == trigger }.forEach { rule ->
             val record = manager.list().firstOrNull { it.id == rule.scriptId }
-            if (record?.enabled == true && (trigger != SchedulerTrigger.GROWTOPIA_DETECTED || record.autoRun)) schedule(rule, sessionId)
+            if (record?.enabled == true && (trigger != SchedulerTrigger.GAME_BRIDGE_READY || record.autoRun)) schedule(rule, sessionId)
         }
     }
     private fun schedule(rule: ScheduleRule, sessionId: String) {

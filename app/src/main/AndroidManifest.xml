@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <queries>
         <package android:name="com.rtsoft.growtopia" />
     </queries>
@@ -15,6 +14,7 @@
         <activity android:name=".EditorActivity" android:exported="false" />
         <activity android:name=".BotManagerActivity" android:exported="false" />
         <activity android:name=".ApiBrowserActivity" android:exported="false" />
+        <activity android:name=".DiagnosticsActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -22,17 +22,5 @@
             </intent-filter>
         </activity>
         <service android:name=".OverlayService" android:exported="false" />
-        <service
-            android:name=".GameWatcherService"
-            android:exported="true"
-            android:label="Zenith'L App Watcher"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_watcher" />
-        </service>
     </application>
 </manifest>

@@ -14,7 +14,7 @@ Lua stop/pause checks run at instruction checkpoints. A blocking native function
 
 ## Overlay does not appear
 
-Grant Android's display-over-other-apps permission and enable the Zenith'L accessibility watcher. Android foreground package detection does not prove Growtopia world readiness. See app logs under private `files/logs/zenith.log` using Android app diagnostics/logcat.
+Grant Android's display-over-other-apps permission to use the floating overlay. Zenith'L can inspect Growtopia's installed package/version and launch it, but Android does not expose foreground package state to this app. No Accessibility permission is requested. World readiness and automatic run triggers need a supported Game Bridge, which is currently unavailable. See app logs under private `files/logs/zenith.log` using Android app diagnostics/logcat.
 
 ## Runtime errors
 

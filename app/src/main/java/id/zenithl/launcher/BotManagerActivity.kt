@@ -16,8 +16,8 @@ class BotManagerActivity : Activity() {
     private fun refresh() {
         container.botController.list { result -> result.onSuccess { sessions ->
             val root = Ui.page(this)
-            root.addView(Ui.title(this, "BOT MANAGER"))
-            root.addView(Ui.label(this, "${sessions.size}/3 session profiles • account credentials and game bridge are not connected"))
+            root.addView(Ui.title(this, "ACCOUNT & SESSION MANAGER"))
+            root.addView(Ui.label(this, "${sessions.size}/3 session profiles • profiles are isolated; account credentials and Game Bridge are not connected"))
             sessions.forEach { session -> root.addView(sessionCard(session)) }
             root.addView(Ui.button(this, "+ ADD SESSION PROFILE") { createSession(sessions.size) })
             root.addView(Ui.button(this, "BACK") { finish() })
@@ -31,7 +31,7 @@ class BotManagerActivity : Activity() {
         setBackgroundColor(Ui.PANEL)
         addView(Ui.title(this@BotManagerActivity, session.profile.accountLabel ?: session.profile.name, 18f))
         addView(Ui.label(this@BotManagerActivity, "World: ${session.profile.world ?: "—"}  •  Script: ${session.profile.scriptId ?: "none"}"))
-        addView(Ui.label(this@BotManagerActivity, "${session.state}  •  Game Bridge: NOT_IMPLEMENTED"))
+        addView(Ui.label(this@BotManagerActivity, "${session.state}  •  Game Bridge: ${(application as ZenithApp).container.gameBridge.status}"))
         addView(Ui.button(this@BotManagerActivity, "ATTACH SCRIPT") { chooseScript(session.id) })
         addView(Ui.button(this@BotManagerActivity, "DETACH SCRIPT") { container.botController.attach(session.id, null) { result -> result.onSuccess { refresh() }.onFailure { showError(it) } } })
         addView(Ui.button(this@BotManagerActivity, "START") { container.botController.start(session.id) { result -> result.onSuccess { Toast.makeText(this@BotManagerActivity, "Session not started: Game Bridge is not implemented", Toast.LENGTH_LONG).show() }.onFailure { showError(it) } } })

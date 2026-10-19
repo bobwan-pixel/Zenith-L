@@ -10,6 +10,9 @@ import id.zenithl.launcher.items.ItemDatabaseLoader
 import id.zenithl.launcher.items.ItemDatabase
 import id.zenithl.launcher.items.ItemDatabaseUpdater
 import id.zenithl.launcher.items.ItemInfo
+import id.zenithl.launcher.diagnostics.*
+import id.zenithl.launcher.networking.BridgeStatus
+import id.zenithl.launcher.networking.UnavailableGameBridge
 import id.zenithl.launcher.logging.MemoryLogger
 import id.zenithl.launcher.lua.LuaExecutionEngine
 import id.zenithl.launcher.player.InterfaceOnlyPlayerStateProvider
@@ -111,6 +114,23 @@ class CoreIsolationTest {
         assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("getTile")?.status)
         assertEquals(ApiStatus.NOT_IMPLEMENTED, ApiRegistry.find("Sleep")?.status)
         assertTrue(ApiRegistry.search("getT").any { it.name == "getTile" })
+        assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("Zenith.getBridgeStatus")?.status)
+    }
+
+    @Test fun packageDetectionDoesNotClaimForegroundOrCompatibility() {
+        val installed = InstalledGame("com.rtsoft.growtopia", "5.13", 513, null)
+        val detector = GameDetector(InstalledGameProvider { installed })
+        val snapshot = detector.detect()
+        assertEquals(GameLifecycleState.INSTALLED, snapshot.state)
+        assertEquals("5.13", snapshot.compatibility.gameVersion)
+        assertFalse(snapshot.compatibility.supported)
+        assertEquals(GameLifecycleState.LAUNCH_REQUESTED, detector.run { markLaunchRequested(); detect().state })
+    }
+
+    @Test fun defaultGameBridgeReportsUnavailableInsteadOfConnecting() {
+        val bridge = UnavailableGameBridge()
+        assertEquals(BridgeStatus.UNAVAILABLE, bridge.status)
+        assertTrue(bridge.attach("s1").isFailure)
     }
 
     private class InMemoryScripts : ScriptRepository {

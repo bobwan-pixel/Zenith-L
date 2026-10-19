@@ -1,7 +1,8 @@
 package id.zenithl.launcher
 
 import android.app.Application
-import id.zenithl.launcher.diagnostics.GrowtopiaDetector
+import id.zenithl.launcher.diagnostics.GameDetector
+import id.zenithl.launcher.diagnostics.GamePackageManager
 import id.zenithl.launcher.bots.BotManagerFacade
 import id.zenithl.launcher.logging.FileLogger
 import id.zenithl.launcher.overlay.OverlayController
@@ -13,6 +14,9 @@ import id.zenithl.launcher.scripts.ScriptScheduler
 import id.zenithl.launcher.sessions.BotManager
 import id.zenithl.launcher.sessions.BotController
 import id.zenithl.launcher.sessions.BotProfile
+import id.zenithl.launcher.items.ItemDatabase
+import id.zenithl.launcher.networking.GameBridge
+import id.zenithl.launcher.networking.UnavailableGameBridge
 import id.zenithl.launcher.storage.AppDatabase
 import id.zenithl.launcher.storage.SQLiteScriptRepository
 import id.zenithl.launcher.storage.SQLiteBotProfileRepository
@@ -43,13 +47,15 @@ class AppContainer(app: Application) {
     }
     val botController = BotController(botManager)
     val zenithBotsApi = BotManagerFacade(botManager)
-    val growtopiaDetector = GrowtopiaDetector()
+    val gameDetector = GameDetector(GamePackageManager(app))
+    val gameBridge: GameBridge = UnavailableGameBridge()
+    /** One app-wide catalog shared by every account/session. No account login triggers data loading. */
+    val itemDatabase = ItemDatabase(File(app.filesDir, "database/items.tsv"))
+    val itemDatabaseUpdater = id.zenithl.launcher.items.ItemDatabaseUpdater(File(app.filesDir, "database/items.tsv"))
+
+    init { runCatching { itemDatabase.load() } }
 
     init { migratePhase1Scripts(app) }
-
-    fun onGrowtopiaDetected() {
-        scheduler.runAutoScripts(MAIN_SESSION_ID)
-    }
 
     private fun migratePhase1Scripts(context: Application) {
         if (database.getSetting("phase1_scripts_migrated") == "1") return
