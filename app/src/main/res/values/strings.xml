@@ -1,3 +1,3 @@
 <resources>
-    <string name="accessibility_watcher_description">Shows the Zenith'L floating menu only while Growtopia is in the foreground.</string>
+    <string name="accessibility_watcher_description">Shows the floating menu only while Growtopia is in the foreground.</string>
 </resources>
