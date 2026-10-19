@@ -1,6 +1,7 @@
 package id.zenithl.launcher
 
 import android.app.Application
+import android.content.Context
 import id.zenithl.launcher.diagnostics.GameDetector
 import id.zenithl.launcher.diagnostics.GamePackageManager
 import id.zenithl.launcher.bots.BotManagerFacade
@@ -121,7 +122,7 @@ class AppContainer(app: Application) {
         io.execute { val result = itemDatabase.load(); mainHandler.post { callback(result) } }
     }
 
-    private fun migratePhase1Scripts(context: Application) {
+    private fun migratePhase1Scripts(context: Context) {
         if (database.getSetting("phase1_scripts_migrated") == "1") return
         ScriptFiles.list(context).forEach { file ->
             if (repository.all().none { it.name.equals(file.nameWithoutExtension, true) }) {
