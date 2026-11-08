@@ -55,6 +55,9 @@ class BotManagerActivity : Activity() {
         }, LinearLayout.LayoutParams(0, Ui.dp(this@BotManagerActivity, 42), 1f).apply { marginStart = Ui.dp(this@BotManagerActivity, 4); marginEnd = Ui.dp(this@BotManagerActivity, 4) })
         controls.addView(Ui.smallButton(this@BotManagerActivity, "Stop") {
             container.botController.stop(session.id) { result -> result.onSuccess { refresh() }.onFailure { showError(it) } }
+        }, LinearLayout.LayoutParams(0, Ui.dp(this@BotManagerActivity, 42), 1f).apply { marginStart = Ui.dp(this@BotManagerActivity, 4); marginEnd = Ui.dp(this@BotManagerActivity, 4) })
+        controls.addView(Ui.smallButton(this@BotManagerActivity, "Restart") {
+            container.botController.restart(session.id) { result -> result.onFailure { showError(it) } }
         }, LinearLayout.LayoutParams(0, Ui.dp(this@BotManagerActivity, 42), 1f).apply { marginStart = Ui.dp(this@BotManagerActivity, 4) })
         addView(controls)
 
