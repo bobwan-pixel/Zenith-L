@@ -20,11 +20,14 @@ Output: `app/build/outputs/apk/debug/app-debug.apk`. Debug builds use the debug 
 
 ## Create the one permanent Release keystore
 
-Create the keystore once. Keep a secure offline backup. Losing it means future updates cannot be installed over builds signed with that key.
+Create the keystore once. Keep a secure offline backup. Losing it means future updates cannot be installed over builds signed with that key. Create the folder first.
 
 ```bash
+mkdir -p keystore
 keytool -genkeypair -v -keystore keystore/zenith-release.jks -alias zenith-release -keyalg RSA -keysize 4096 -validity 10000
 ```
+
+On Windows PowerShell, create the folder with `New-Item -ItemType Directory -Force keystore` before running `keytool`.
 
 Create a local `keystore.properties` file in the repository root (this file is ignored by Git):
 
