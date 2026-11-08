@@ -224,7 +224,7 @@ class MainActivity : Activity() {
         gravity = Gravity.CENTER
         background = android.graphics.drawable.GradientDrawable().apply {
             setColor(Ui.PANEL)
-            cornerRadii = floatArrayOf(18f, 18f, 18f, 18f, 0f, 0f, 0f, 0f)
+            setCornerRadii(floatArrayOf(18f, 18f, 18f, 18f, 0f, 0f, 0f, 0f))
             setStroke(Ui.dp(this@MainActivity, 1), Ui.BORDER)
         }
         setPadding(Ui.dp(this@MainActivity, 8), 0, Ui.dp(this@MainActivity, 8), 0)
