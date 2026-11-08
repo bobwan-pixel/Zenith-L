@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -51,6 +52,25 @@ class LuaRuntimeInstrumentedTest {
             assertTrue(error.contains("INTERFACE_ONLY"))
             assertTrue(error.contains("Game Bridge is unavailable"))
         } finally { engine.close("bridge-api") }
+    }
+
+    @Test fun nativePrintOutputIsForwardedToListenerWithTabSeparatedArguments() {
+        val engine = NativeLuaExecutionEngine()
+        val completed = CountDownLatch(1)
+        val output = CopyOnWriteArrayList<String>()
+        var error: String? = null
+        try {
+            engine.execute("print-output", "output", """print("hello", 42, true)""", "Print.lua", object : LuaExecutionEngine.Listener {
+                override fun onStarted() = Unit
+                override fun onOutput(message: String) { output += message }
+                override fun onCompleted() { completed.countDown() }
+                override fun onError(trace: String) { error = trace; completed.countDown() }
+                override fun onStopped() { error = "STOPPED"; completed.countDown() }
+            })
+            assertTrue("Lua print script timed out", completed.await(10, TimeUnit.SECONDS))
+            assertNull(error)
+            assertEquals(listOf("hello\t42\ttrue"), output)
+        } finally { engine.close("print-output") }
     }
 
     @Test fun nativeLua54ExecutesAndIsolatesSeparateSessions() {
