@@ -19,6 +19,24 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("version") }
     }
 
+    @Test fun runtimeAndSessionIntrospectionApisReturnRealValues() {
+        val engine = NativeLuaExecutionEngine()
+        try {
+            val source = """
+                local runtime = Zenith.getRuntimeInfo()
+                local session = Zenith.getSessionInfo()
+                assert(runtime.luaVersion == "Lua 5.4.9")
+                assert(runtime.memoryLimitBytes == 32 * 1024 * 1024)
+                assert(runtime.maxSessions == 3)
+                assert(session.id == "introspection")
+                assert(session.runtimeStatus == "READY")
+                assert(Zenith.getBridgeStatus() == "UNAVAILABLE")
+                assert(Zenith.gameBridgeStatus == "UNAVAILABLE")
+            """.trimIndent()
+            assertEquals("", execute(engine, "introspection", source))
+        } finally { engine.close("introspection") }
+    }
+
     @Test fun runtimeExposesOnlyTheDocumentedSafeStandardLibraries() {
         val engine = NativeLuaExecutionEngine()
         try {
