@@ -11,6 +11,13 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class LuaRuntimeInstrumentedTest {
+    @Test fun zenithVersionMatchesInstalledBuild() {
+        val engine = NativeLuaExecutionEngine()
+        try {
+            assertEquals("", execute(engine, "version", "assert(Zenith.getVersion() == \"" + BuildConfig.VERSION_NAME + "\")"))
+        } finally { engine.close("version") }
+    }
+
     @Test fun nativeLua54ExecutesAndIsolatesSeparateSessions() {
         val engine = NativeLuaExecutionEngine()
         try {
