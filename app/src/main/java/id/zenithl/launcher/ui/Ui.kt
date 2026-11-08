@@ -85,10 +85,10 @@ internal object Ui {
         setBackground(GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(0xFF20264A.toInt(), 0xFF142C3B.toInt(), 0xFF121C30.toInt())
-        )).apply {
+        ).apply {
             cornerRadius = dp(context, 22).toFloat()
             setStroke(dp(context, 1), 0xFF39446A.toInt())
-        }
+        })
         addView(eyebrow(context, "ZENITH'L • SCRIPTING ENVIRONMENT"))
         addView(TextView(context).apply {
             text = heading
