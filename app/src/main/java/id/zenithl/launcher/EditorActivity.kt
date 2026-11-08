@@ -49,7 +49,8 @@ class EditorActivity : Activity() {
     private fun showEditor(script: ScriptRecord?, source: String?) {
         currentId = script?.id
         val root = Ui.page(this)
-        root.addView(Ui.title(this, script?.name ?: "New Lua Script"))
+        root.addView(Ui.eyebrow(this, "LUA 5.4.9 EDITOR"))
+        root.addView(Ui.title(this, script?.name ?: "New Lua Script", 27f))
         root.addView(Ui.label(this, "Lua 5.4.9 • disabled I/O, OS, package loading • GL bridge APIs remain unavailable"))
         nameField = Ui.edit(this, "example.lua").apply { setText(script?.name?.plus(".lua") ?: "") }
         root.addView(nameField)
