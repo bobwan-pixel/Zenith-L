@@ -143,7 +143,7 @@ internal object Ui {
     fun label(context: Context, value: String) = TextView(context).apply {
         text = value
         textSize = 13f
-        lineSpacingMultiplier = 1.15f
+        setLineSpacing(0f, 1.15f)
         setTextColor(MUTED)
         setPadding(0, dp(context, 3), 0, dp(context, 12))
     }
