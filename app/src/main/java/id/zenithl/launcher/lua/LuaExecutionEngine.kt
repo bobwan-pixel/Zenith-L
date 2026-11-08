@@ -18,6 +18,7 @@ interface LuaExecutionEngine {
         fun onCompleted()
         fun onError(trace: String)
         fun onStopped()
+        fun onOutput(message: String) = Unit
     }
 }
 
@@ -66,7 +67,10 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                 }
                 NativeLua.nativeControl(sessionId, 0)
                 listener.onStarted()
-                val error = NativeLua.nativeExecute(sessionId, source, "@$chunkName")
+                val outputListener = NativeLua.OutputListener { message ->
+                    if (!session.closed.get()) listener.onOutput(message)
+                }
+                val error = NativeLua.nativeExecute(sessionId, source, "@$chunkName", outputListener)
                 when {
                     session.closed.get() -> listener.onStopped()
                     error.isEmpty() -> listener.onCompleted()
