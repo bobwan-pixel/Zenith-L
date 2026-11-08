@@ -75,7 +75,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                 }
             } catch (error: Throwable) {
                 if (session.closed.get()) listener.onStopped()
-                else listener.onError("\${error::class.java.simpleName}: \${error.message ?: "Lua runtime failure"}")
+                else listener.onError("${error::class.java.simpleName}: ${error.message ?: "Lua runtime failure"}")
             }
         }
     }
