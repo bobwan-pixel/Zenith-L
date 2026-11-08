@@ -142,7 +142,9 @@ class CoreIsolationTest {
         assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("getTile")?.status)
         assertEquals(ApiStatus.NOT_IMPLEMENTED, ApiRegistry.find("Sleep")?.status)
         assertTrue(ApiRegistry.search("getT").any { it.name == "getTile" })
-        assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("Zenith.getBridgeStatus")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getBridgeStatus")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getRuntimeInfo")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getSessionInfo")?.status)
     }
 
     @Test fun packageDetectionDoesNotClaimForegroundOrCompatibility() {
