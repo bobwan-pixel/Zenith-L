@@ -31,7 +31,8 @@ class DiagnosticsActivity : Activity() {
         fun update() {
             if (destroyed || detection == null || sessions == null || catalog == "loading") return
             root.removeAllViews()
-            root.addView(Ui.title(this, "DIAGNOSTICS"))
+            root.addView(Ui.eyebrow(this, "SYSTEM HEALTH"))
+            root.addView(Ui.title(this, "Diagnostics", 28f))
             root.addView(Ui.section(this, "GAME"))
             root.addView(Ui.label(this, "Package: ${detection!!.packageName}"))
             root.addView(Ui.label(this, "Detection: ${detection!!.state}"))
