@@ -85,6 +85,7 @@ class ScriptManager(
         val script = required(id)
         running.entries.filter { it.value.scriptId == id }.forEach { (session, active) ->
             engine.stop(session)
+            watchdog?.complete(sessionId = session, state = WatchdogState.STOPPED)
             running.remove(session, active)
         }
         File(script.path).delete()
@@ -169,10 +170,22 @@ class ScriptManager(
     }
     @Synchronized fun restart(id: String, sessionId: String) {
         val active = running.remove(sessionId)
-        if (active != null) engine.stop(sessionId)
+        if (active != null) {
+            engine.stop(sessionId)
+            watchdog?.complete(sessionId, WatchdogState.STOPPED)
+        }
         run(id, sessionId)
     }
-    fun closeSession(sessionId: String) { stop(sessionId); engine.close(sessionId); running.remove(sessionId) }
+
+    fun closeSession(sessionId: String) {
+        val active = running.remove(sessionId)
+        if (active != null) {
+            engine.stop(sessionId)
+            watchdog?.complete(sessionId, WatchdogState.STOPPED)
+            saveState(active.scriptId, if (required(active.scriptId).enabled) ScriptState.ENABLED else ScriptState.DISABLED)
+        }
+        engine.close(sessionId)
+    }
 
     private fun finishIfCurrent(sessionId: String, active: ActiveRun, state: ScriptState, message: String) {
         if (running[sessionId] != active) return
