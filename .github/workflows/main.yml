@@ -154,21 +154,7 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot-load -no-snapshot-save
           emulator-boot-timeout: 900
           disable-animations: true
-          script: |
-            for attempt in $(seq 1 30); do
-              if adb shell cmd package list packages >/dev/null 2>&1; then
-                echo "Android package manager is ready."
-                break
-              fi
-              echo "Waiting for Android package manager ($attempt/30)..."
-              sleep 5
-            done
-            adb shell cmd package list packages >/dev/null 2>&1 || {
-              echo "Android package manager did not become available."
-              adb logcat -d -b all -v time | grep -E 'FATAL EXCEPTION|system_server|PackageManager|Watchdog|OutOfMemory' | tail -n 200 || true
-              exit 1
-            }
-            ./gradlew connectedDebugAndroidTest
+          script: ./gradlew connectedDebugAndroidTest
 
   windows-desktop:
     runs-on: windows-latest
