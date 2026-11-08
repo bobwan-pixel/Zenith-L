@@ -8,6 +8,23 @@ def googleWebClientId = providers.gradleProperty('googleWebClientId')
     .getOrElse('')
 def escapedGoogleWebClientId = googleWebClientId.replace('\\', '\\\\').replace('"', '\\"')
 
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file('keystore.properties')
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+def signingValue = { String key, String envKey ->
+    providers.environmentVariable(envKey)
+        .orElse(signingProperties.getProperty(key, ''))
+        .getOrElse('')
+}
+def releaseStoreFile = signingValue('storeFile', 'RELEASE_STORE_FILE')
+def releaseStorePassword = signingValue('storePassword', 'RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = signingValue('keyAlias', 'RELEASE_KEY_ALIAS')
+def releaseKeyPassword = signingValue('keyPassword', 'RELEASE_KEY_PASSWORD')
+def releaseSigningConfigured = [releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword]
+    .every { !it.toString().trim().isEmpty() }
+
 android {
     namespace 'id.zenithl.launcher'
     compileSdk 35
@@ -16,8 +33,8 @@ android {
         applicationId 'id.zenithl.launcher'
         minSdk 23
         targetSdk 33
-        versionCode 4
-        versionName '0.4.0'
+        versionCode providers.gradleProperty('VERSION_CODE').get().toInteger()
+        versionName providers.gradleProperty('VERSION_NAME').get()
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'GOOGLE_WEB_CLIENT_ID', "\"${escapedGoogleWebClientId}\""
         externalNativeBuild {
@@ -29,8 +46,23 @@ android {
     externalNativeBuild {
         cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
     }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
-        release { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
         debug { applicationIdSuffix '.debug' }
     }
     compileOptions {
