@@ -2,9 +2,9 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#52B6FF</item>
-        <item name="android:colorPrimary">#101E30</item>
-        <item name="android:colorPrimaryDark">#07111F</item>
+        <item name="android:colorAccent">#8B83FF</item>
+        <item name="android:colorPrimary">#111A2B</item>
+        <item name="android:colorPrimaryDark">#080D18</item>
         <item name="android:statusBarColor">#07111F</item>
         <item name="android:navigationBarColor">#07111F</item>
         <item name="android:windowBackground">#07111F</item>
