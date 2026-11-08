@@ -24,8 +24,6 @@ internal object Ui {
     const val MUTED = 0xFF929DB4.toInt()
     const val SURFACE = 0xFF151F33.toInt()
     const val BORDER = 0xFF26334B.toInt()
-    private const val CYAN = 0xFF63D8D0.toInt()
-    private const val DARK = 0xFF0C1424.toInt()
 
     fun page(context: Context): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -46,7 +44,7 @@ internal object Ui {
         text = value.uppercase()
         textSize = 10f
         letterSpacing = 0.14f
-        setTextColor(CYAN)
+        setTextColor(0xFF63D8D0.toInt())
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setPadding(0, 0, 0, dp(context, 8))
     }
