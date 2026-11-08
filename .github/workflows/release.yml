@@ -38,6 +38,10 @@ jobs:
       - name: Install native build tools
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
 
+      - name: Determine Android version
+        id: app-version
+        run: echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Prepare release signing keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -53,7 +57,7 @@ jobs:
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          VERSION_CODE: ${{ github.run_number }}
+          VERSION_CODE: ${{ steps.app-version.outputs.version_code }}
           VERSION_NAME: ${{ github.ref_name }}
         run: |
           test -n "$RELEASE_STORE_PASSWORD" && test -n "$RELEASE_KEY_ALIAS" && test -n "$RELEASE_KEY_PASSWORD" || {
