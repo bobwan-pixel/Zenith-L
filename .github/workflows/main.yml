@@ -31,12 +31,33 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - name: Prepare release signing key
+        id: release-signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            KEYSTORE_PATH="$RUNNER_TEMP/zenithl-release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+            echo "RELEASE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "status=signed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=unsigned" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release keystore secrets are not configured. Release APK will be unsigned."
+          fi
+
 
       - name: Install native build tools
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Run JVM tests and build APK
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 
       - name: Report lint errors on failure
         if: failure()
@@ -49,6 +70,12 @@ jobs:
         with:
           name: ZenithL-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZenithL-release-${{ steps.release-signing.outputs.status }}
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
 
   native-tests:
