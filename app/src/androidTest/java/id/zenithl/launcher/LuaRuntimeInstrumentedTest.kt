@@ -47,7 +47,7 @@ class LuaRuntimeInstrumentedTest {
     @Test fun unavailableGameApisFailExplicitlyInsteadOfPretendingToWork() {
         val engine = NativeLuaExecutionEngine()
         try {
-            val error = execute(engine, "bridge-api", "assert(Zenith.apiVersion == \\"0.4\\"); getTile(1, 1)")
+            val error = execute(engine, "bridge-api", """assert(Zenith.apiVersion == "0.4"); getTile(1, 1)""")
             assertTrue(error.contains("INTERFACE_ONLY"))
             assertTrue(error.contains("Game Bridge is unavailable"))
         } finally { engine.close("bridge-api") }
