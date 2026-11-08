@@ -3,10 +3,39 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-def googleWebClientId = providers.gradleProperty('googleWebClientId')
-    .orElse(providers.environmentVariable('GOOGLE_WEB_CLIENT_ID'))
-    .getOrElse('')
+def googleWebClientId = project.findProperty('googleWebClientId') ?:
+    System.getenv('GOOGLE_WEB_CLIENT_ID') ?: ''
 def escapedGoogleWebClientId = googleWebClientId.replace('\\', '\\\\').replace('"', '\\"')
+
+def versionProperties = new Properties()
+def versionPropertiesFile = rootProject.file('version.properties')
+if (versionPropertiesFile.exists()) {
+    versionPropertiesFile.withInputStream { versionProperties.load(it) }
+}
+def appVersionCode = (project.findProperty('VERSION_CODE') ?:
+    System.getenv('VERSION_CODE') ?:
+    versionProperties.getProperty('VERSION_CODE', '4')).toString().toInteger()
+def appVersionName = (project.findProperty('VERSION_NAME') ?:
+    System.getenv('VERSION_NAME') ?:
+    versionProperties.getProperty('VERSION_NAME', '0.4.0')).toString()
+
+def releaseProperties = new Properties()
+def releasePropertiesFile = rootProject.file('keystore.properties')
+if (releasePropertiesFile.exists()) {
+    releasePropertiesFile.withInputStream { releaseProperties.load(it) }
+}
+def releaseSetting = { String gradleName, String envName, String fileName ->
+    project.findProperty(gradleName)?.toString() ?:
+        System.getenv(envName) ?:
+        releaseProperties.getProperty(fileName)
+}
+def releaseStoreFilePath = releaseSetting('releaseStoreFile', 'RELEASE_STORE_FILE', 'storeFile')
+def releaseStorePassword = releaseSetting('releaseStorePassword', 'RELEASE_STORE_PASSWORD', 'storePassword')
+def releaseKeyAlias = releaseSetting('releaseKeyAlias', 'RELEASE_KEY_ALIAS', 'keyAlias')
+def releaseKeyPassword = releaseSetting('releaseKeyPassword', 'RELEASE_KEY_PASSWORD', 'keyPassword')
+def releaseSigningConfigured = [
+    releaseStoreFilePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+].every { it != null && !it.toString().trim().isEmpty() }
 
 android {
     namespace 'id.zenithl.launcher'
@@ -16,10 +45,10 @@ android {
         applicationId 'id.zenithl.launcher'
         minSdk 23
         targetSdk 33
-        versionCode 4
-        versionName '0.4.0'
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
-        buildConfigField 'String', 'GOOGLE_WEB_CLIENT_ID', "\"${escapedGoogleWebClientId}\""
+        buildConfigField 'String', 'GOOGLE_WEB_CLIENT_ID', "\"\u0024{escapedGoogleWebClientId}\""
         externalNativeBuild {
             cmake { cppFlags '-std=c++20' }
         }
@@ -29,8 +58,23 @@ android {
     externalNativeBuild {
         cmake { path file('src/main/cpp/CMakeLists.txt'); version '3.22.1' }
     }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile rootProject.file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
-        release { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
         debug { applicationIdSuffix '.debug' }
     }
     compileOptions {
@@ -38,6 +82,28 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = '17' }
+}
+
+tasks.register('validateReleaseSigning') {
+    group = 'verification'
+    description = 'Verifies that the release keystore and credentials are configured.'
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                'Release signing is not configured. Create keystore.properties locally or provide RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD.'
+            )
+        }
+        def keyStore = rootProject.file(releaseStoreFilePath)
+        if (!keyStore.isFile()) {
+            throw new GradleException("Release keystore does not exist: ${keyStore}")
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name in ['assembleRelease', 'packageRelease', 'bundleRelease']) {
+        task.dependsOn tasks.named('validateReleaseSigning')
+    }
 }
 
 dependencies {
