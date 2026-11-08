@@ -36,14 +36,14 @@ internal object Ui {
         textSize = size
         setTextColor(WHITE)
         typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        letterSpacing = -0.025f
+        setLetterSpacing(-0.025f)
         setPadding(0, 0, 0, dp(context, 7))
     }
 
     fun eyebrow(context: Context, value: String) = TextView(context).apply {
         text = value.uppercase()
         textSize = 10f
-        letterSpacing = 0.14f
+        setLetterSpacing(0.14f)
         setTextColor(0xFF63D8D0.toInt())
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setPadding(0, 0, 0, dp(context, 8))
@@ -52,7 +52,7 @@ internal object Ui {
     fun section(context: Context, value: String) = TextView(context).apply {
         text = value.uppercase()
         textSize = 11f
-        letterSpacing = 0.12f
+        setLetterSpacing(0.12f)
         setTextColor(MUTED)
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setPadding(0, dp(context, 22), 0, dp(context, 11))
@@ -65,7 +65,7 @@ internal object Ui {
         addView(TextView(context).apply {
             text = heading
             textSize = 15f
-            letterSpacing = -0.01f
+            setLetterSpacing(-0.01f)
             typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
             setTextColor(WHITE)
         })
@@ -93,7 +93,7 @@ internal object Ui {
         addView(TextView(context).apply {
             text = heading
             textSize = 24f
-            letterSpacing = -0.035f
+            setLetterSpacing(-0.035f)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setTextColor(WHITE)
         })
@@ -114,14 +114,14 @@ internal object Ui {
         addView(TextView(context).apply {
             text = value
             textSize = 22f
-            letterSpacing = -0.03f
+            setLetterSpacing(-0.03f)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setTextColor(WHITE)
         })
         addView(TextView(context).apply {
             text = caption.uppercase()
             textSize = 9.5f
-            letterSpacing = 0.09f
+            setLetterSpacing(0.09f)
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(MUTED)
             setPadding(0, dp(context, 4), 0, 0)
@@ -152,7 +152,7 @@ internal object Ui {
         text = value
         isAllCaps = false
         textSize = 13f
-        letterSpacing = 0.015f
+        setLetterSpacing(0.015f)
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setTextColor(0xFF0B1020.toInt())
         background = GradientDrawable().apply {
