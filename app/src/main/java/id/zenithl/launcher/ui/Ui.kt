@@ -72,7 +72,7 @@ internal object Ui {
         addView(TextView(context).apply {
             text = detail
             textSize = 12.5f
-            lineSpacingMultiplier = 1.12f
+            setLineSpacing(0f, 1.12f)
             setTextColor(MUTED)
             setPadding(0, dp(context, 6), 0, 0)
         })
@@ -100,7 +100,7 @@ internal object Ui {
         addView(TextView(context).apply {
             text = detail
             textSize = 13f
-            lineSpacingMultiplier = 1.15f
+            setLineSpacing(0f, 1.15f)
             setTextColor(0xFFB6C3D8.toInt())
             setPadding(0, dp(context, 7), 0, dp(context, 2))
         })
