@@ -3,3 +3,9 @@
 local.properties
 .idea/
 *.iml
+
+# Never commit release signing material.
+keystore.properties
+*.jks
+*.keystore
+/signing/
