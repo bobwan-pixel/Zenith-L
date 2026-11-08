@@ -130,6 +130,10 @@ class ScriptManager(
                 update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
                 logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
             }
+            override fun onOutput(message: String) {
+                if (running[sessionId] != active) return
+                logger.log(LogEntry(level = LogLevel.INFO, component = "Lua", message = message, scriptId = id, sessionId = sessionId))
+            }
             override fun onCompleted() {
                 if (running[sessionId] != active) return
                 watchdog?.complete(sessionId)
