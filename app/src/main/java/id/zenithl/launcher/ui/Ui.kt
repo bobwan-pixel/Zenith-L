@@ -61,7 +61,7 @@ internal object Ui {
     fun card(context: Context, heading: String, detail: String): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(context, 16), dp(context, 15), dp(context, 16), dp(context, 15))
-        background = rounded(context, SURFACE, BORDER, 18)
+        setBackground(rounded(context, SURFACE, BORDER, 18))
         addView(TextView(context).apply {
             text = heading
             textSize = 15f
@@ -82,10 +82,10 @@ internal object Ui {
     fun heroCard(context: Context, heading: String, detail: String): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(context, 18), dp(context, 19), dp(context, 18), dp(context, 18))
-        background = GradientDrawable(
+        setBackground(GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(0xFF20264A.toInt(), 0xFF142C3B.toInt(), 0xFF121C30.toInt())
-        ).apply {
+        )).apply {
             cornerRadius = dp(context, 22).toFloat()
             setStroke(dp(context, 1), 0xFF39446A.toInt())
         }
@@ -110,7 +110,7 @@ internal object Ui {
     fun metric(context: Context, value: String, caption: String): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(context, 14), dp(context, 14), dp(context, 12), dp(context, 13))
-        background = rounded(context, PANEL, BORDER, 16)
+        setBackground(rounded(context, PANEL, BORDER, 16))
         addView(TextView(context).apply {
             text = value
             textSize = 22f
@@ -134,7 +134,7 @@ internal object Ui {
         textSize = 12f
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setTextColor(WHITE)
-        background = rounded(context, PANEL, BORDER, 12)
+        setBackground(rounded(context, PANEL, BORDER, 12))
         minHeight = dp(context, 42)
         setPadding(dp(context, 12), 0, dp(context, 12), 0)
         setOnClickListener { action() }
@@ -155,10 +155,10 @@ internal object Ui {
         setLetterSpacing(0.015f)
         typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
         setTextColor(0xFF0B1020.toInt())
-        background = GradientDrawable().apply {
+        setBackground(GradientDrawable().apply {
             setColor(BLUE)
             cornerRadius = dp(context, 14).toFloat()
-        }
+        })
         minHeight = dp(context, 50)
         setPadding(dp(context, 16), 0, dp(context, 16), 0)
         stateListAnimator = null
@@ -172,7 +172,7 @@ internal object Ui {
         setTextColor(WHITE)
         textSize = 14f
         setPadding(dp(context, 14), dp(context, 12), dp(context, 14), dp(context, 12))
-        background = rounded(context, PANEL, BORDER, 13)
+        setBackground(rounded(context, PANEL, BORDER, 13))
         if (multi) {
             gravity = Gravity.TOP or Gravity.START
             minLines = 12
