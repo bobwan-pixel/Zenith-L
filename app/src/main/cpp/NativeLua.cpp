@@ -78,6 +78,31 @@ int getZenithVersion(lua_State* state) {
     return 1;
 }
 
+int getRuntimeInfo(lua_State* state) {
+    lua_newtable(state);
+    lua_pushliteral(state, "Lua 5.4.9");
+    lua_setfield(state, -2, "luaVersion");
+    lua_pushinteger(state, static_cast<lua_Integer>(Runtime::memoryLimitBytes));
+    lua_setfield(state, -2, "memoryLimitBytes");
+    lua_pushinteger(state, 3);
+    lua_setfield(state, -2, "maxSessions");
+    return 1;
+}
+
+int getSessionInfo(lua_State* state) {
+    lua_newtable(state);
+    lua_pushstring(state, lua_tostring(state, lua_upvalueindex(1)));
+    lua_setfield(state, -2, "id");
+    lua_pushliteral(state, "READY");
+    lua_setfield(state, -2, "runtimeStatus");
+    return 1;
+}
+
+int getBridgeStatus(lua_State* state) {
+    lua_pushliteral(state, "UNAVAILABLE");
+    return 1;
+}
+
 void openLibrary(lua_State* state, const char* name, lua_CFunction open) {
     luaL_requiref(state, name, open, 1);
     lua_pop(state, 1);
@@ -95,7 +120,7 @@ void instructionHook(lua_State* state, lua_Debug*) {
     }
 }
 
-void registerHostApi(lua_State* state, const std::string& appVersion) {
+void registerHostApi(lua_State* state, const std::string& appVersion, const std::string& sessionId) {
     for (const char* unsafeBaseFunction : {"dofile", "loadfile", "load"}) {
         lua_pushnil(state);
         lua_setglobal(state, unsafeBaseFunction);
@@ -109,8 +134,15 @@ void registerHostApi(lua_State* state, const std::string& appVersion) {
     lua_setfield(state, -2, "getVersion");
     lua_pushstring(state, "0.4");
     lua_setfield(state, -2, "apiVersion");
-    lua_pushstring(state, "INTERFACE_ONLY");
+    lua_pushstring(state, "UNAVAILABLE");
     lua_setfield(state, -2, "gameBridgeStatus");
+    lua_pushcfunction(state, getRuntimeInfo);
+    lua_setfield(state, -2, "getRuntimeInfo");
+    lua_pushstring(state, sessionId.c_str());
+    lua_pushcclosure(state, getSessionInfo, 1);
+    lua_setfield(state, -2, "getSessionInfo");
+    lua_pushcfunction(state, getBridgeStatus);
+    lua_setfield(state, -2, "getBridgeStatus");
     lua_setglobal(state, "Zenith");
 
     const char* glFunctions[] = {
@@ -127,7 +159,7 @@ void registerHostApi(lua_State* state, const std::string& appVersion) {
         lua_pushcclosure(state, unavailableApi, 1);
         lua_setglobal(state, function);
     }
-    const char* zenithFunctions[] = {"getRuntimeInfo", "getScriptInfo", "getSessionInfo", "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot"};
+    const char* zenithFunctions[] = {"getScriptInfo", "getGameInfo", "getGameVersion", "getSessions", "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot"};
     lua_getglobal(state, "Zenith");
     for (const char* function : zenithFunctions) {
         lua_pushstring(state, function);
@@ -160,7 +192,7 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
     openLibrary(runtime->state, "math", luaopen_math);
     openLibrary(runtime->state, "utf8", luaopen_utf8);
     openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-    registerHostApi(runtime->state, version);
+    registerHostApi(runtime->state, version, id);
     // No file, process, package, dynamic-loader, or debug libraries are opened.
     std::lock_guard<std::mutex> lock(runtimesMutex);
     if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
