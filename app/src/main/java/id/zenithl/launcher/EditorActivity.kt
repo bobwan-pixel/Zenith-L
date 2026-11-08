@@ -23,12 +23,17 @@ class EditorActivity : Activity() {
     private fun showFiles() {
         container.scriptController.list { result -> result.onSuccess { scripts ->
             val root = Ui.page(this)
-            root.addView(Ui.title(this, "Script Workspace"))
+            root.addView(Ui.eyebrow(this, "LOCAL LUA ENVIRONMENT"))
+            root.addView(Ui.title(this, "Script Workspace", 28f))
             root.addView(Ui.label(this, "Persistent metadata • ${scripts.size} scripts"))
-            root.addView(Ui.button(this, "+ NEW SCRIPT") { showEditor(null, null) })
-            root.addView(Ui.button(this, "IMPORT LUA FILE") { openLuaPicker() })
+            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            actions.addView(Ui.smallButton(this, "+ New script") { showEditor(null, null) }, LinearLayout.LayoutParams(0, Ui.dp(this@EditorActivity, 44), 1f).apply { marginEnd = Ui.dp(this@EditorActivity, 5) })
+            actions.addView(Ui.smallButton(this, "Import .lua") { openLuaPicker() }, LinearLayout.LayoutParams(0, Ui.dp(this@EditorActivity, 44), 1f).apply { marginStart = Ui.dp(this@EditorActivity, 5) })
+            root.addView(actions)
+            root.addView(Ui.section(this, "${scripts.size} FILES"))
+            if (scripts.isEmpty()) root.addView(Ui.card(this, "Your workspace is empty", "Create a Lua script or import an existing .lua file."))
             scripts.forEach { script ->
-                root.addView(Ui.button(this, "${if (script.favorite) "★ " else ""}${script.name}.lua  •  ${script.state}") { open(script.id) })
+                root.addView(Ui.card(this, "${if (script.favorite) "★  " else ""}${script.name}.lua", "${script.state}  •  ${if (script.enabled) "Enabled" else "Disabled"}").apply { setOnClickListener { open(script.id) } })
             }
             root.addView(Ui.button(this, "API REFERENCE") { startActivity(android.content.Intent(this, ApiBrowserActivity::class.java)) })
             root.addView(Ui.button(this, "BACK TO ZENITH'L") { finish() })
