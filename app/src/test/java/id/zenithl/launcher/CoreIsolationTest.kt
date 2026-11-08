@@ -114,6 +114,26 @@ class CoreIsolationTest {
         temp.deleteRecursively()
     }
 
+    @Test fun staleScriptCallbackCannotClearRestartedSessionWatchdog() {
+        val temp = createTempDir(prefix = "zenith-stale-callback-test")
+        val repository = InMemoryScripts()
+        val watchdog = RecordingWatchdog()
+        val engine = DeferredEngine()
+        val manager = ScriptManager(repository, temp, engine, MemoryLogger(), watchdog)
+        val script = manager.create("StaleCallback", "print('run')")
+        manager.setEnabled(script.id, true)
+
+        manager.run(script.id, "session-a")
+        manager.restart(script.id, "session-a")
+        assertEquals(2, engine.listeners.size)
+
+        engine.listeners.first().onStopped()
+
+        assertEquals(WatchdogState.RUNNING, watchdog.state("session-a"))
+        assertEquals(1, watchdog.completions)
+        temp.deleteRecursively()
+    }
+
     @Test fun itemDatabaseLoaderValidatesAndLooksUpRows() {
         val items = ItemDatabaseLoader.parse(listOf("1\tDirt\t0\t1\t1\t30", "2\tRock\t0\t2\t1\t0"))
         assertEquals(listOf(1, 2), items.map(ItemInfo::id))
@@ -257,5 +277,17 @@ class CoreIsolationTest {
         override fun complete(sessionId: String, state: WatchdogState) {
             if (active.remove(sessionId) != null) completions++
         }
+    }
+
+    private class DeferredEngine : LuaExecutionEngine {
+        val listeners = mutableListOf<LuaExecutionEngine.Listener>()
+        override fun execute(sessionId: String, scriptId: String, source: String, chunkName: String, listener: LuaExecutionEngine.Listener): Future<*> {
+            listeners += listener
+            return java.util.concurrent.CompletableFuture.completedFuture(null)
+        }
+        override fun pause(sessionId: String) = Unit
+        override fun resume(sessionId: String) = Unit
+        override fun stop(sessionId: String) = Unit
+        override fun close(sessionId: String) = Unit
     }
 }
