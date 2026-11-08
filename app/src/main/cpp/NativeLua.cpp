@@ -74,7 +74,7 @@ int unavailableApi(lua_State* state) {
 }
 
 int getZenithVersion(lua_State* state) {
-    lua_pushstring(state, "0.3.0");
+    lua_pushstring(state, lua_tostring(state, lua_upvalueindex(1)));
     return 1;
 }
 
@@ -94,7 +94,7 @@ void instructionHook(lua_State* state, lua_Debug*) {
     }
 }
 
-void registerHostApi(lua_State* state) {
+void registerHostApi(lua_State* state, const std::string& appVersion) {
     for (const char* unsafeBaseFunction : {"dofile", "loadfile", "load"}) {
         lua_pushnil(state);
         lua_setglobal(state, unsafeBaseFunction);
@@ -103,7 +103,8 @@ void registerHostApi(lua_State* state) {
     lua_setglobal(state, "print");
 
     lua_newtable(state);
-    lua_pushcfunction(state, getZenithVersion);
+    lua_pushstring(state, appVersion.c_str());
+    lua_pushcclosure(state, getZenithVersion, 1);
     lua_setfield(state, -2, "getVersion");
     lua_pushstring(state, "0.3");
     lua_setfield(state, -2, "apiVersion");
@@ -143,8 +144,9 @@ std::shared_ptr<Runtime> findRuntime(const std::string& id) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId) {
+Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId, jstring appVersion) {
     const std::string id = toString(env, sessionId);
+    const std::string version = toString(env, appVersion);
     if (id.empty()) return JNI_FALSE;
     auto runtime = std::make_shared<Runtime>();
     runtime->id = id;
@@ -157,7 +159,7 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
     openLibrary(runtime->state, "math", luaopen_math);
     openLibrary(runtime->state, "utf8", luaopen_utf8);
     openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-    registerHostApi(runtime->state);
+    registerHostApi(runtime->state, version);
     // No file, process, package, dynamic-loader, or debug libraries are opened.
     std::lock_guard<std::mutex> lock(runtimesMutex);
     if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
