@@ -19,7 +19,8 @@ class DiagnosticsActivity : Activity() {
         super.onCreate(savedInstanceState)
         val app = (application as ZenithApp).container
         val root = Ui.page(this)
-        root.addView(Ui.title(this, "DIAGNOSTICS"))
+        root.addView(Ui.eyebrow(this, "SYSTEM HEALTH"))
+        root.addView(Ui.title(this, "Diagnostics", 28f))
         root.addView(Ui.label(this, "Technical runtime information. Game data is never synthesized."))
         root.addView(Ui.label(this, "Loading diagnostics…"))
         setContentView(Ui.scroll(this, root))
