@@ -84,7 +84,8 @@ void openLibrary(lua_State* state, const char* name, lua_CFunction open) {
 }
 
 void instructionHook(lua_State* state, lua_Debug*) {
-    auto* runtime = static_cast<Runtime*>(lua_getextraspace(state));
+    auto** runtimeSlot = static_cast<Runtime**>(lua_getextraspace(state));
+    auto* runtime = runtimeSlot == nullptr ? nullptr : *runtimeSlot;
     if (runtime == nullptr) return;
     while (runtime->control.load(std::memory_order_relaxed) == Control::Paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
