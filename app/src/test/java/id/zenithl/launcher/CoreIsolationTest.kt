@@ -31,6 +31,7 @@ import id.zenithl.launcher.safety.SafetySeverity
 import id.zenithl.launcher.safety.SafetyMonitor
 import id.zenithl.launcher.safety.WatchdogLimits
 import id.zenithl.launcher.safety.WatchdogState
+import id.zenithl.launcher.safety.ScriptWatchdog
 import id.zenithl.launcher.modules.ModModuleRegistry
 import id.zenithl.launcher.world.StateResult
 import id.zenithl.launcher.world.WorldSnapshot
@@ -93,6 +94,23 @@ class CoreIsolationTest {
         val saved = requireNotNull(repository.get(script.id))
         assertTrue(saved.enabled && saved.autoRun && saved.favorite)
         assertEquals(ScriptState.ENABLED, saved.state)
+        temp.deleteRecursively()
+    }
+
+    @Test fun restartingScriptReleasesPreviousWatchdogBeforeStartingAgain() {
+        val temp = createTempDir(prefix = "zenith-restart-test")
+        val repository = InMemoryScripts()
+        val watchdog = RecordingWatchdog()
+        val manager = ScriptManager(repository, temp, NoopEngine(), MemoryLogger(), watchdog)
+        val script = manager.create("Restart", "print('restart')")
+        manager.setEnabled(script.id, true)
+
+        manager.run(script.id, "session-a")
+        manager.restart(script.id, "session-a")
+
+        assertEquals(2, watchdog.starts)
+        assertEquals(1, watchdog.completions)
+        assertEquals(WatchdogState.RUNNING, watchdog.state("session-a"))
         temp.deleteRecursively()
     }
 
@@ -217,5 +235,25 @@ class CoreIsolationTest {
         override fun resume(sessionId: String) = Unit
         override fun stop(sessionId: String) = Unit
         override fun close(sessionId: String) = Unit
+    }
+
+    private class RecordingWatchdog : ScriptWatchdog {
+        private val active = mutableMapOf<String, WatchdogState>()
+        var starts = 0
+        var completions = 0
+        override fun start(sessionId: String, scriptId: String) {
+            check(active.putIfAbsent(sessionId, WatchdogState.RUNNING) == null)
+            starts++
+        }
+        override fun setPaused(sessionId: String, paused: Boolean) {
+            active[sessionId] = if (paused) WatchdogState.PAUSED else WatchdogState.RUNNING
+        }
+        override fun reportError(sessionId: String, message: String, stackTrace: String) {
+            active[sessionId] = WatchdogState.ERROR
+        }
+        override fun state(sessionId: String): WatchdogState? = active[sessionId]
+        override fun complete(sessionId: String, state: WatchdogState) {
+            if (active.remove(sessionId) != null) completions++
+        }
     }
 }
