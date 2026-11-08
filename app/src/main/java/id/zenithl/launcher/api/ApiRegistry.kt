@@ -18,8 +18,11 @@ object ApiRegistry {
 
     val definitions: List<ApiDefinition> = buildList {
         add(ApiDefinition("Zenith.getVersion", "Return Zenith'L application version.", emptyList(), "string", "Zenith.getVersion()", "Zenith extension", ApiStatus.IMPLEMENTED))
+        add(ApiDefinition("Zenith.getRuntimeInfo", "Return Lua runtime version and configured resource limits.", emptyList(), "RuntimeInfo", "Zenith.getRuntimeInfo()", "Zenith extension API 0.4", ApiStatus.IMPLEMENTED))
+        add(ApiDefinition("Zenith.getSessionInfo", "Return the current isolated Lua session identifier and runtime state.", emptyList(), "SessionInfo", "Zenith.getSessionInfo()", "Zenith extension API 0.4", ApiStatus.IMPLEMENTED))
+        add(ApiDefinition("Zenith.getBridgeStatus", "Return the current Game Bridge availability state.", emptyList(), "string", "Zenith.getBridgeStatus()", "Zenith extension API 0.4", ApiStatus.IMPLEMENTED))
         val zenithNames = listOf(
-            "getRuntimeInfo", "getGameInfo", "getGameVersion", "getBridgeStatus", "getSessionInfo", "getSessions",
+            "getGameInfo", "getGameVersion", "getSessions",
             "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot",
         ) + listOf("world", "player", "inventory", "objects", "npc", "session", "script", "database", "bridge", "diagnostics").map { "$it.*" }
         zenithNames.forEach { name ->
