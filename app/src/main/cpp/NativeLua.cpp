@@ -31,6 +31,31 @@ struct Runtime {
 std::mutex runtimesMutex;
 std::unordered_map<std::string, std::shared_ptr<Runtime>> runtimes;
 
+// The callback is scoped to nativeExecute and is only used on that same JNI thread.
+thread_local JNIEnv* outputEnv = nullptr;
+thread_local jobject outputListener = nullptr;
+
+void deliverOutput(const std::string& message) {
+    if (outputEnv == nullptr || outputListener == nullptr) return;
+
+    jclass listenerClass = outputEnv->GetObjectClass(outputListener);
+    if (listenerClass == nullptr) {
+        if (outputEnv->ExceptionCheck()) outputEnv->ExceptionClear();
+        return;
+    }
+
+    const jmethodID callback = outputEnv->GetMethodID(listenerClass, "onOutput", "(Ljava/lang/String;)V");
+    if (callback != nullptr) {
+        jstring value = outputEnv->NewStringUTF(message.c_str());
+        if (value != nullptr) {
+            outputEnv->CallVoidMethod(outputListener, callback, value);
+            outputEnv->DeleteLocalRef(value);
+        }
+    }
+    if (outputEnv->ExceptionCheck()) outputEnv->ExceptionClear();
+    outputEnv->DeleteLocalRef(listenerClass);
+}
+
 void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
     auto* runtime = static_cast<Runtime*>(userData);
     if (newSize == 0) {
@@ -65,6 +90,7 @@ int zenithPrint(lua_State* state) {
         lua_pop(state, 1);
     }
     __android_log_write(ANDROID_LOG_INFO, kTag, message.c_str());
+    deliverOutput(message);
     return 0;
 }
 
@@ -74,7 +100,32 @@ int unavailableApi(lua_State* state) {
 }
 
 int getZenithVersion(lua_State* state) {
-    lua_pushstring(state, "0.3.0");
+    lua_pushstring(state, lua_tostring(state, lua_upvalueindex(1)));
+    return 1;
+}
+
+int getRuntimeInfo(lua_State* state) {
+    lua_newtable(state);
+    lua_pushliteral(state, "Lua 5.4.9");
+    lua_setfield(state, -2, "luaVersion");
+    lua_pushinteger(state, static_cast<lua_Integer>(Runtime::memoryLimitBytes));
+    lua_setfield(state, -2, "memoryLimitBytes");
+    lua_pushinteger(state, 3);
+    lua_setfield(state, -2, "maxSessions");
+    return 1;
+}
+
+int getSessionInfo(lua_State* state) {
+    lua_newtable(state);
+    lua_pushstring(state, lua_tostring(state, lua_upvalueindex(1)));
+    lua_setfield(state, -2, "id");
+    lua_pushliteral(state, "READY");
+    lua_setfield(state, -2, "runtimeStatus");
+    return 1;
+}
+
+int getBridgeStatus(lua_State* state) {
+    lua_pushliteral(state, "UNAVAILABLE");
     return 1;
 }
 
@@ -84,7 +135,8 @@ void openLibrary(lua_State* state, const char* name, lua_CFunction open) {
 }
 
 void instructionHook(lua_State* state, lua_Debug*) {
-    auto* runtime = static_cast<Runtime*>(lua_getextraspace(state));
+    auto** runtimeSlot = static_cast<Runtime**>(lua_getextraspace(state));
+    auto* runtime = runtimeSlot == nullptr ? nullptr : *runtimeSlot;
     if (runtime == nullptr) return;
     while (runtime->control.load(std::memory_order_relaxed) == Control::Paused) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -94,7 +146,7 @@ void instructionHook(lua_State* state, lua_Debug*) {
     }
 }
 
-void registerHostApi(lua_State* state) {
+void registerHostApi(lua_State* state, const std::string& appVersion, const std::string& sessionId) {
     for (const char* unsafeBaseFunction : {"dofile", "loadfile", "load"}) {
         lua_pushnil(state);
         lua_setglobal(state, unsafeBaseFunction);
@@ -103,12 +155,20 @@ void registerHostApi(lua_State* state) {
     lua_setglobal(state, "print");
 
     lua_newtable(state);
-    lua_pushcfunction(state, getZenithVersion);
+    lua_pushstring(state, appVersion.c_str());
+    lua_pushcclosure(state, getZenithVersion, 1);
     lua_setfield(state, -2, "getVersion");
-    lua_pushstring(state, "0.3");
+    lua_pushstring(state, "0.4");
     lua_setfield(state, -2, "apiVersion");
-    lua_pushstring(state, "INTERFACE_ONLY");
+    lua_pushstring(state, "UNAVAILABLE");
     lua_setfield(state, -2, "gameBridgeStatus");
+    lua_pushcfunction(state, getRuntimeInfo);
+    lua_setfield(state, -2, "getRuntimeInfo");
+    lua_pushstring(state, sessionId.c_str());
+    lua_pushcclosure(state, getSessionInfo, 1);
+    lua_setfield(state, -2, "getSessionInfo");
+    lua_pushcfunction(state, getBridgeStatus);
+    lua_setfield(state, -2, "getBridgeStatus");
     lua_setglobal(state, "Zenith");
 
     const char* glFunctions[] = {
@@ -125,7 +185,7 @@ void registerHostApi(lua_State* state) {
         lua_pushcclosure(state, unavailableApi, 1);
         lua_setglobal(state, function);
     }
-    const char* zenithFunctions[] = {"getRuntimeInfo", "getScriptInfo", "getSessionInfo", "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot"};
+    const char* zenithFunctions[] = {"getScriptInfo", "getGameInfo", "getGameVersion", "getSessions", "getBots", "getBot", "startBot", "stopBot", "pauseBot", "restartBot"};
     lua_getglobal(state, "Zenith");
     for (const char* function : zenithFunctions) {
         lua_pushstring(state, function);
@@ -143,8 +203,9 @@ std::shared_ptr<Runtime> findRuntime(const std::string& id) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId) {
+Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId, jstring appVersion) {
     const std::string id = toString(env, sessionId);
+    const std::string version = toString(env, appVersion);
     if (id.empty()) return JNI_FALSE;
     auto runtime = std::make_shared<Runtime>();
     runtime->id = id;
@@ -157,7 +218,7 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
     openLibrary(runtime->state, "math", luaopen_math);
     openLibrary(runtime->state, "utf8", luaopen_utf8);
     openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-    registerHostApi(runtime->state);
+    registerHostApi(runtime->state, version, id);
     // No file, process, package, dynamic-loader, or debug libraries are opened.
     std::lock_guard<std::mutex> lock(runtimesMutex);
     if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
@@ -166,15 +227,19 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstring sessionId, jstring source, jstring chunkName) {
+Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstring sessionId, jstring source, jstring chunkName, jobject listener) {
     auto runtime = findRuntime(toString(env, sessionId));
     if (runtime == nullptr || runtime->state == nullptr) return env->NewStringUTF("Runtime not initialized");
     const std::string code = toString(env, source);
     const std::string name = toString(env, chunkName);
+    outputEnv = env;
+    outputListener = listener;
     lua_sethook(runtime->state, instructionHook, LUA_MASKCOUNT, 1000);
     int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
     if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);
     lua_sethook(runtime->state, nullptr, 0, 0);
+    outputListener = nullptr;
+    outputEnv = nullptr;
     if (status == LUA_OK) {
         lua_settop(runtime->state, 0);
         return env->NewStringUTF("");

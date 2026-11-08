@@ -31,6 +31,7 @@ import id.zenithl.launcher.safety.SafetySeverity
 import id.zenithl.launcher.safety.SafetyMonitor
 import id.zenithl.launcher.safety.WatchdogLimits
 import id.zenithl.launcher.safety.WatchdogState
+import id.zenithl.launcher.safety.ScriptWatchdog
 import id.zenithl.launcher.modules.ModModuleRegistry
 import id.zenithl.launcher.world.StateResult
 import id.zenithl.launcher.world.WorldSnapshot
@@ -96,6 +97,43 @@ class CoreIsolationTest {
         temp.deleteRecursively()
     }
 
+    @Test fun restartingScriptReleasesPreviousWatchdogBeforeStartingAgain() {
+        val temp = createTempDir(prefix = "zenith-restart-test")
+        val repository = InMemoryScripts()
+        val watchdog = RecordingWatchdog()
+        val manager = ScriptManager(repository, temp, NoopEngine(), MemoryLogger(), watchdog)
+        val script = manager.create("Restart", "print('restart')")
+        manager.setEnabled(script.id, true)
+
+        manager.run(script.id, "session-a")
+        manager.restart(script.id, "session-a")
+
+        assertEquals(2, watchdog.starts)
+        assertEquals(1, watchdog.completions)
+        assertEquals(WatchdogState.RUNNING, watchdog.state("session-a"))
+        temp.deleteRecursively()
+    }
+
+    @Test fun staleScriptCallbackCannotClearRestartedSessionWatchdog() {
+        val temp = createTempDir(prefix = "zenith-stale-callback-test")
+        val repository = InMemoryScripts()
+        val watchdog = RecordingWatchdog()
+        val engine = DeferredEngine()
+        val manager = ScriptManager(repository, temp, engine, MemoryLogger(), watchdog)
+        val script = manager.create("StaleCallback", "print('run')")
+        manager.setEnabled(script.id, true)
+
+        manager.run(script.id, "session-a")
+        manager.restart(script.id, "session-a")
+        assertEquals(2, engine.listeners.size)
+
+        engine.listeners.first().onStopped()
+
+        assertEquals(WatchdogState.RUNNING, watchdog.state("session-a"))
+        assertEquals(1, watchdog.completions)
+        temp.deleteRecursively()
+    }
+
     @Test fun itemDatabaseLoaderValidatesAndLooksUpRows() {
         val items = ItemDatabaseLoader.parse(listOf("1\tDirt\t0\t1\t1\t30", "2\tRock\t0\t2\t1\t0"))
         assertEquals(listOf(1, 2), items.map(ItemInfo::id))
@@ -124,7 +162,9 @@ class CoreIsolationTest {
         assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("getTile")?.status)
         assertEquals(ApiStatus.NOT_IMPLEMENTED, ApiRegistry.find("Sleep")?.status)
         assertTrue(ApiRegistry.search("getT").any { it.name == "getTile" })
-        assertEquals(ApiStatus.INTERFACE_ONLY, ApiRegistry.find("Zenith.getBridgeStatus")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getBridgeStatus")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getRuntimeInfo")?.status)
+        assertEquals(ApiStatus.IMPLEMENTED, ApiRegistry.find("Zenith.getSessionInfo")?.status)
     }
 
     @Test fun packageDetectionDoesNotClaimForegroundOrCompatibility() {
@@ -211,6 +251,38 @@ class CoreIsolationTest {
         var executions = 0
         override fun execute(sessionId: String, scriptId: String, source: String, chunkName: String, listener: LuaExecutionEngine.Listener): Future<*> {
             executions++
+            return java.util.concurrent.CompletableFuture.completedFuture(null)
+        }
+        override fun pause(sessionId: String) = Unit
+        override fun resume(sessionId: String) = Unit
+        override fun stop(sessionId: String) = Unit
+        override fun close(sessionId: String) = Unit
+    }
+
+    private class RecordingWatchdog : ScriptWatchdog {
+        private val active = mutableMapOf<String, WatchdogState>()
+        var starts = 0
+        var completions = 0
+        override fun start(sessionId: String, scriptId: String) {
+            check(active.putIfAbsent(sessionId, WatchdogState.RUNNING) == null)
+            starts++
+        }
+        override fun setPaused(sessionId: String, paused: Boolean) {
+            active[sessionId] = if (paused) WatchdogState.PAUSED else WatchdogState.RUNNING
+        }
+        override fun reportError(sessionId: String, message: String, stackTrace: String) {
+            active[sessionId] = WatchdogState.ERROR
+        }
+        override fun state(sessionId: String): WatchdogState? = active[sessionId]
+        override fun complete(sessionId: String, state: WatchdogState) {
+            if (active.remove(sessionId) != null) completions++
+        }
+    }
+
+    private class DeferredEngine : LuaExecutionEngine {
+        val listeners = mutableListOf<LuaExecutionEngine.Listener>()
+        override fun execute(sessionId: String, scriptId: String, source: String, chunkName: String, listener: LuaExecutionEngine.Listener): Future<*> {
+            listeners += listener
             return java.util.concurrent.CompletableFuture.completedFuture(null)
         }
         override fun pause(sessionId: String) = Unit

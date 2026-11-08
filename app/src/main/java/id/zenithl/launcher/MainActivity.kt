@@ -38,9 +38,11 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Ui.BG) }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Ui.BG)
+        }
         val content = Ui.page(this).apply { layoutParams = LinearLayout.LayoutParams(-1, 0, 1f) }
-        content.addView(Ui.label(this, "ZENITH'L  /  ${page.name}"))
         when (page) {
             Page.HOME -> home(content)
             Page.ACCOUNTS -> accounts(content)
@@ -54,37 +56,96 @@ class MainActivity : Activity() {
 
     private fun home(root: LinearLayout) {
         val game = container.gameDetector.detect().game
-        root.addView(Ui.title(this, "Welcome to Zenith'L", 29f))
-        root.addView(Ui.label(this, "Launcher and Lua workspace"))
-        root.addView(Ui.card(this, "GROWTOPIA", "${game?.versionName?.let { "Version $it" } ?: "Not installed"}  •  Bridge unavailable"))
-        root.addView(Ui.button(this, "LAUNCH GROWTOPIA") { launchGrowtopia() })
         val enabled = scripts.count { it.enabled }
-        root.addView(Ui.section(this, "YOUR WORKSPACE"))
-        root.addView(Ui.card(this, "SESSIONS", "Manage isolated runtime profiles in Accounts"))
-        root.addView(Ui.card(this, "$enabled ENABLED SCRIPT${if (enabled == 1) "" else "S"}", scripts.firstOrNull { it.enabled }?.name ?: "No enabled scripts"))
-        root.addView(Ui.card(this, "ITEM CATALOG", container.itemDatabase.version?.value?.let { "Catalog $it" } ?: "Catalog status available in Diagnostics"))
-        root.addView(Ui.section(this, "RECENT SCRIPT"))
         val recent = scripts.maxByOrNull { it.lastRun ?: 0 }
-        root.addView(Ui.card(this, recent?.name ?: "No recent script", when {
-            recent == null -> "Create or import a Lua file in Scripts"
-            recent.enabled -> "Enabled  •  ${recent.state}"
-            else -> "Disabled"
-        }))
-        if (recent?.enabled == true) root.addView(Ui.button(this, "PLAY ${recent.name.uppercase()}") {
-            container.scriptController.run(recent.id, AppContainer.MAIN_SESSION_ID) { result ->
-                result.onSuccess { Toast.makeText(this, "Lua started; Growtopia APIs require Game Bridge.", Toast.LENGTH_LONG).show() }
-                    .onFailure { Toast.makeText(this, it.message, Toast.LENGTH_LONG).show() }
+
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, Ui.dp(this@MainActivity, 22))
+            addView(TextView(this@MainActivity).apply {
+                text = "Z"
+                textSize = 20f
+                gravity = Gravity.CENTER
+                typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                setTextColor(0xFF0B1020.toInt())
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(Ui.BLUE)
+                    cornerRadius = Ui.dp(this@MainActivity, 13).toFloat()
+                }
+                layoutParams = LinearLayout.LayoutParams(Ui.dp(this@MainActivity, 42), Ui.dp(this@MainActivity, 42))
+            })
+            val wordmark = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(Ui.dp(this@MainActivity, 11), 0, 0, 0)
+                addView(TextView(this@MainActivity).apply {
+                    text = "ZENITH'L"
+                    textSize = 16f
+                    letterSpacing = 0.08f
+                    typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                    setTextColor(Ui.WHITE)
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = "LAUNCHER WORKSPACE"
+                    textSize = 9f
+                    letterSpacing = 0.12f
+                    setTextColor(Ui.MUTED)
+                })
             }
-        })
+            addView(wordmark)
+        }
+        root.addView(brand)
+        root.addView(Ui.eyebrow(this, "YOUR CONTROL CENTER"))
+        root.addView(Ui.title(this, "Welcome back.", 29f))
+        root.addView(Ui.label(this, "Your scripts and runtime tools, in one place."))
+
+        root.addView(Ui.heroCard(
+            this,
+            "Make room for better scripts.",
+            "${game?.versionName?.let { "Growtopia $it detected" } ?: "Growtopia not detected"}  •  Game Bridge unavailable"
+        ))
+        root.addView(Ui.button(this, "LAUNCH GROWTOPIA  ↗") { launchGrowtopia() })
+
+        root.addView(Ui.section(this, "WORKSPACE OVERVIEW"))
+        val metrics = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(Ui.metric(this@MainActivity, scripts.size.toString(), "Total scripts"),
+                LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = Ui.dp(this@MainActivity, 8) })
+            addView(Ui.metric(this@MainActivity, enabled.toString(), "Enabled"),
+                LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = Ui.dp(this@MainActivity, 8) })
+        }
+        root.addView(metrics)
+        root.addView(Ui.card(this, "Runtime profiles", "Manage isolated session profiles from the Accounts tab."))
+        root.addView(Ui.card(this, "Item catalog", container.itemDatabase.version?.value?.let { "Catalog version $it" } ?: "Catalog status is available in Diagnostics."))
+
+        root.addView(Ui.section(this, "RECENT ACTIVITY"))
+        root.addView(Ui.card(
+            this,
+            recent?.name ?: "No recent script",
+            when {
+                recent == null -> "Your workspace is empty. Create or import a Lua script to begin."
+                recent.enabled -> "Enabled  •  ${recent.state}"
+                else -> "Disabled  •  Open Script Library to manage it"
+            }
+        ))
+        if (recent?.enabled == true) {
+            root.addView(Ui.button(this, "RUN ${recent.name.uppercase()}") {
+                container.scriptController.run(recent.id, AppContainer.MAIN_SESSION_ID) { result ->
+                    result.onSuccess { Toast.makeText(this, "Lua started; Growtopia APIs require Game Bridge.", Toast.LENGTH_LONG).show() }
+                        .onFailure { Toast.makeText(this, it.message, Toast.LENGTH_LONG).show() }
+                }
+            })
+        }
     }
 
     private fun accounts(root: LinearLayout) {
-        root.addView(Ui.title(this, "Accounts & Sessions", 27f))
-        root.addView(Ui.label(this, "Profiles store account labels only. Authentication is unavailable until a trusted identity backend is configured."))
+        root.addView(Ui.eyebrow(this, "IDENTITY & RUNTIME"))
+        root.addView(Ui.title(this, "Accounts", 28f))
+        root.addView(Ui.label(this, "Profiles store account labels only. Authentication requires a trusted identity backend."))
         val accountRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(accountRows)
         container.accountController.list { result -> result.onSuccess { accounts ->
-            if (accounts.isEmpty()) accountRows.addView(Ui.label(this, "No account profiles yet"))
+            if (accounts.isEmpty()) accountRows.addView(Ui.card(this, "No account profiles", "Add a local profile label to organize your workspace."))
             accounts.forEach { account -> accountRows.addView(Ui.card(this, account.displayName, "${account.provider}  •  ${account.status}  •  Profile only")) }
         }.onFailure(::showError) }
         root.addView(Ui.button(this, "+ ADD ACCOUNT PROFILE") { addAccountProfile() })
@@ -93,6 +154,7 @@ class MainActivity : Activity() {
                 Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
             }
         })
+        root.addView(Ui.section(this, "SESSION PROFILES"))
         val sessions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(sessions)
         container.botController.list { result ->
@@ -102,8 +164,8 @@ class MainActivity : Activity() {
             } }.onFailure(::showError)
         }
         root.addView(Ui.button(this, "MANAGE SESSION PROFILES") { startActivity(Intent(this, BotManagerActivity::class.java)) })
-        root.addView(Ui.card(this, "Google sign-in", "Credential Manager client is wired. Account creation is NOT_CONFIGURED until a trusted ID-token validation backend is available."))
-        root.addView(Ui.card(this, "Local development login", "NOT IMPLEMENTED  •  no embedded seed credentials"))
+        root.addView(Ui.card(this, "Google sign-in", "Credential Manager is wired. Account creation remains NOT_CONFIGURED until a trusted ID-token validation backend is available."))
+        root.addView(Ui.card(this, "Local development login", "Not implemented. No embedded seed credentials."))
     }
 
     private fun addAccountProfile() {
@@ -117,49 +179,66 @@ class MainActivity : Activity() {
     }
 
     private fun scriptLibrary(root: LinearLayout) {
-        root.addView(Ui.title(this, "Script Library", 27f))
-        root.addView(Ui.label(this, "Native Lua 5.4.9  •  scripts run in isolated session VMs"))
+        root.addView(Ui.eyebrow(this, "LOCAL LUA ENVIRONMENT"))
+        root.addView(Ui.title(this, "Script Library", 28f))
+        root.addView(Ui.label(this, "Lua 5.4.9  •  isolated runtime states  •  stored on this device"))
         root.addView(Ui.button(this, "OPEN SCRIPT EDITOR") { startActivity(Intent(this, EditorActivity::class.java)) })
         root.addView(Ui.button(this, "IMPORT LUA FILE") { startActivity(Intent(this, EditorActivity::class.java)) })
-        if (scripts.isEmpty()) root.addView(Ui.card(this, "Workspace is empty", "Create a script or import a .lua file to get started"))
+        root.addView(Ui.section(this, "${scripts.size} SCRIPTS IN WORKSPACE"))
+        if (scripts.isEmpty()) root.addView(Ui.card(this, "Nothing here yet", "Create a script or import a .lua file to start building your library."))
         scripts.forEach { script ->
             root.addView(Ui.card(this, "${if (script.favorite) "★  " else ""}${script.name}", "${if (script.enabled) "Enabled" else "Disabled"}  •  Auto-run ${if (script.autoRun) "on" else "off"}  •  ${script.state}"))
-            val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val actions = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, Ui.dp(this@MainActivity, 10))
+            }
             actions.addView(Ui.smallButton(this, if (script.enabled) "Disable" else "Enable") {
                 container.scriptController.setEnabled(script.id, !script.enabled) { it.onSuccess { render() }.onFailure(::showError) }
-            }, LinearLayout.LayoutParams(0, Ui.dp(this, 46), 1f))
+            }, LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1f).apply { marginEnd = Ui.dp(this@MainActivity, 5) })
             actions.addView(Ui.smallButton(this, if (script.autoRun) "Auto-run ✓" else "Auto-run") {
                 container.scriptController.setAutoRun(script.id, !script.autoRun) { it.onSuccess { render() }.onFailure(::showError) }
-            }, LinearLayout.LayoutParams(0, Ui.dp(this, 46), 1f))
+            }, LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1f).apply { marginStart = Ui.dp(this@MainActivity, 5) })
             root.addView(actions)
         }
     }
 
     private fun settings(root: LinearLayout) {
-        root.addView(Ui.title(this, "Settings", 27f))
+        root.addView(Ui.eyebrow(this, "PREFERENCES & TOOLS"))
+        root.addView(Ui.title(this, "Settings", 28f))
         root.addView(Ui.card(this, "Floating Mod Menu", if (container.permissionManager.canDisplayOverlay()) "Display over other apps: Ready" else "Display over other apps permission required"))
         root.addView(Ui.button(this, if (container.permissionManager.canDisplayOverlay()) "START FLOATING MENU" else "ENABLE DISPLAY OVER OTHER APPS") {
             if (!container.permissionManager.canDisplayOverlay()) startActivity(container.permissionManager.overlaySettingsIntent())
             else { startService(Intent(this, OverlayService::class.java)); Toast.makeText(this, "Floating menu started. Bridge: unavailable.", Toast.LENGTH_LONG).show() }
         })
+        root.addView(Ui.section(this, "DEVELOPER TOOLS"))
         root.addView(Ui.button(this, "BOT / SESSION MANAGER") { startActivity(Intent(this, BotManagerActivity::class.java)) })
         root.addView(Ui.button(this, "MOD MENU MODULES") { startActivity(Intent(this, ModMenuActivity::class.java)) })
         root.addView(Ui.button(this, "API EXPLORER") { startActivity(Intent(this, ApiBrowserActivity::class.java)) })
         root.addView(Ui.button(this, "DIAGNOSTICS & SAFETY STATUS") { startActivity(Intent(this, DiagnosticsActivity::class.java)) })
-        root.addView(Ui.card(this, "Zenith Safety Engine", "PARTIAL  •  script and session watchdog foundations are being added; no game action monitoring without Bridge"))
+        root.addView(Ui.section(this, "SYSTEM STATUS"))
+        root.addView(Ui.card(this, "Zenith Safety Engine", "Partial implementation. Script and session watchdog foundations are available; game action monitoring requires a real Game Bridge."))
     }
 
     private fun bottomNavigation() = LinearLayout(this).apply {
-        setBackgroundColor(Ui.PANEL)
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(Ui.PANEL)
+            setCornerRadii(floatArrayOf(18f, 18f, 18f, 18f, 0f, 0f, 0f, 0f))
+            setStroke(Ui.dp(this@MainActivity, 1), Ui.BORDER)
+        }
+        setPadding(Ui.dp(this@MainActivity, 8), 0, Ui.dp(this@MainActivity, 8), 0)
         Page.values().forEach { destination ->
             val selected = destination == page
-            addView(TextView(this@MainActivity).apply {
-                text = destination.name.lowercase().replaceFirstChar { it.uppercase() }
-                textSize = 12f; gravity = Gravity.CENTER
-                setTextColor(if (selected) Ui.BLUE else Ui.MUTED)
-                setPadding(2, Ui.dp(this@MainActivity, 14), 2, Ui.dp(this@MainActivity, 14))
-                setOnClickListener { if (page != destination) { page = destination; render() } }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
+            val label = when (destination) {
+                Page.HOME -> "Home"
+                Page.ACCOUNTS -> "Accounts"
+                Page.SCRIPTS -> "Scripts"
+                Page.SETTINGS -> "Settings"
+            }
+            addView(Ui.navItem(this@MainActivity, label, selected) {
+                if (page != destination) { page = destination; render() }
+            }, LinearLayout.LayoutParams(0, Ui.dp(this@MainActivity, 58), 1f))
         }
     }
 

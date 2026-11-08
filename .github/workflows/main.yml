@@ -1,14 +1,20 @@
-
 name: Build ZenithL APK
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: zenithl-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -77,12 +83,27 @@ jobs:
       - name: Run Lua runtime tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 34
           target: google_apis
           arch: x86_64
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot-load -no-snapshot-save
+          emulator-boot-timeout: 900
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          script: |
+            for attempt in $(seq 1 30); do
+              if adb shell cmd package list packages >/dev/null 2>&1; then
+                echo "Android package manager is ready."
+                break
+              fi
+              echo "Waiting for Android package manager ($attempt/30)..."
+              sleep 5
+            done
+            adb shell cmd package list packages >/dev/null 2>&1 || {
+              echo "Android package manager did not become available."
+              adb logcat -d -b all -v time | grep -E 'FATAL EXCEPTION|system_server|PackageManager|Watchdog|OutOfMemory' | tail -n 200 || true
+              exit 1
+            }
+            ./gradlew connectedDebugAndroidTest
 
   windows-desktop:
     runs-on: windows-latest
@@ -107,7 +128,7 @@ jobs:
         run: cmake -S desktop/native -B desktop/native/build -A x64; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cmake --build desktop/native/build --config Release
         shell: pwsh
       - name: Test and package Windows desktop app
-        run: .\gradlew.bat :desktop:build :desktop:jpackageWindows
+        run: .\\gradlew.bat :desktop:build :desktop:jpackageWindows
         shell: pwsh
       - name: Upload Windows app image
         uses: actions/upload-artifact@v4
@@ -115,4 +136,3 @@ jobs:
           name: ZenithL-Windows
           path: desktop/build/windows/ZenithL
           if-no-files-found: error
-          

@@ -1,5 +1,6 @@
 package id.zenithl.launcher.safety
 
+import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedDeque
 
 enum class SafetySeverity { INFO, LOW, MEDIUM, HIGH, CRITICAL }
@@ -54,7 +55,7 @@ class SafetyEngine(
     fun incidents(sessionId: String? = null, scriptId: String? = null): List<SafetyIncident> = incidents.filter {
         (sessionId == null || it.sessionId == sessionId) && (scriptId == null || it.scriptId == scriptId)
     }
-    fun snapshot() = SafetySnapshot(stopped.keys.toSet(), incidents.size, incidents.peekFirst())
+    fun snapshot() = SafetySnapshot(Collections.list(stopped.keys()).toSet(), incidents.size, incidents.peekFirst())
 }
 
 enum class WatchdogState { RUNNING, PAUSED, STOPPING, STOPPED, ERROR, TIMEOUT, CRASHED }

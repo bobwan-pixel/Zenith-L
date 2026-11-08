@@ -8,6 +8,7 @@ import id.zenithl.launcher.safety.ScriptWatchdog
 import id.zenithl.launcher.safety.WatchdogState
 import java.io.File
 import java.util.UUID
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 enum class ScriptState { DISABLED, ENABLED, STARTING, RUNNING, PAUSED, STOPPING, ERROR, TIMEOUT }
@@ -47,7 +48,7 @@ class ScriptManager(
     private val running = ConcurrentHashMap<String, ActiveRun>() // session -> isolated run
 
     fun list(): List<ScriptRecord> = repository.all()
-    fun stopAll() { running.keys.toList().forEach(::stop) }
+    fun stopAll() { Collections.list(running.keys()).forEach(::stop) }
     fun search(query: String): List<ScriptRecord> = list().filter { it.name.contains(query, true) }
     fun sort(favoritesFirst: Boolean = false): List<ScriptRecord> = list().sortedWith(compareByDescending<ScriptRecord> { favoritesFirst && it.favorite }.thenBy { it.name.lowercase() })
 
@@ -85,6 +86,7 @@ class ScriptManager(
         val script = required(id)
         running.entries.filter { it.value.scriptId == id }.forEach { (session, active) ->
             engine.stop(session)
+            watchdog?.complete(sessionId = session, state = WatchdogState.STOPPED)
             running.remove(session, active)
         }
         File(script.path).delete()
@@ -128,8 +130,17 @@ class ScriptManager(
                 update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
                 logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
             }
-            override fun onCompleted() { watchdog?.complete(sessionId); finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}") }
+            override fun onOutput(message: String) {
+                if (running[sessionId] != active) return
+                logger.log(LogEntry(level = LogLevel.INFO, component = "Lua", message = message, scriptId = id, sessionId = sessionId))
+            }
+            override fun onCompleted() {
+                if (running[sessionId] != active) return
+                watchdog?.complete(sessionId)
+                finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}")
+            }
             override fun onStopped() {
+                if (running[sessionId] != active) return
                 val timedOut = watchdog?.state(sessionId) == WatchdogState.TIMEOUT
                 watchdog?.complete(sessionId, if (timedOut) WatchdogState.TIMEOUT else WatchdogState.STOPPED)
                 finishIfCurrent(sessionId, active, if (timedOut) ScriptState.TIMEOUT else if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED,
@@ -169,10 +180,22 @@ class ScriptManager(
     }
     @Synchronized fun restart(id: String, sessionId: String) {
         val active = running.remove(sessionId)
-        if (active != null) engine.stop(sessionId)
+        if (active != null) {
+            engine.stop(sessionId)
+            watchdog?.complete(sessionId, WatchdogState.STOPPED)
+        }
         run(id, sessionId)
     }
-    fun closeSession(sessionId: String) { stop(sessionId); engine.close(sessionId); running.remove(sessionId) }
+
+    fun closeSession(sessionId: String) {
+        val active = running.remove(sessionId)
+        if (active != null) {
+            engine.stop(sessionId)
+            watchdog?.complete(sessionId, WatchdogState.STOPPED)
+            saveState(active.scriptId, if (required(active.scriptId).enabled) ScriptState.ENABLED else ScriptState.DISABLED)
+        }
+        engine.close(sessionId)
+    }
 
     private fun finishIfCurrent(sessionId: String, active: ActiveRun, state: ScriptState, message: String) {
         if (running[sessionId] != active) return
