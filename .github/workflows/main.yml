@@ -42,7 +42,7 @@ jobs:
         run: sdkmanager "platforms;android-35" "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Run JVM tests and build APK
-        run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
 
       - name: Report lint errors on failure
         if: failure()
