@@ -37,7 +37,8 @@ class ModMenuActivity : Activity() {
 
     private fun render() {
         val root = Ui.page(this)
-        root.addView(Ui.title(this, "Mod Menu", 26f))
+        root.addView(Ui.eyebrow(this, "MODULE REGISTRY"))
+        root.addView(Ui.title(this, "Mod Menu", 28f))
         root.addView(Ui.label(this, "MODULE REGISTRY  •  ${ModModuleRegistry.categories.size} CATEGORIES  •  BRIDGE ${ (application as ZenithApp).container.gameBridge.status }"))
         val search = Ui.edit(this, "Search modules")
         search.setText(query)
