@@ -18,6 +18,22 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("version") }
     }
 
+    @Test fun runtimeExposesOnlyTheDocumentedSafeStandardLibraries() {
+        val engine = NativeLuaExecutionEngine()
+        try {
+            assertEquals("", execute(engine, "sandbox", "assert(load == nil and dofile == nil and loadfile == nil and package == nil and io == nil and os == nil and debug == nil)"))
+        } finally { engine.close("sandbox") }
+    }
+
+    @Test fun unavailableGameApisFailExplicitlyInsteadOfPretendingToWork() {
+        val engine = NativeLuaExecutionEngine()
+        try {
+            val error = execute(engine, "bridge-api", "assert(Zenith.apiVersion == \\"0.4\\"); getTile(1, 1)")
+            assertTrue(error.contains("INTERFACE_ONLY"))
+            assertTrue(error.contains("Game Bridge is unavailable"))
+        } finally { engine.close("bridge-api") }
+    }
+
     @Test fun nativeLua54ExecutesAndIsolatesSeparateSessions() {
         val engine = NativeLuaExecutionEngine()
         try {
