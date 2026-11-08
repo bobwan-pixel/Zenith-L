@@ -129,8 +129,13 @@ class ScriptManager(
                 update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
                 logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
             }
-            override fun onCompleted() { watchdog?.complete(sessionId); finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}") }
+            override fun onCompleted() {
+                if (running[sessionId] != active) return
+                watchdog?.complete(sessionId)
+                finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}")
+            }
             override fun onStopped() {
+                if (running[sessionId] != active) return
                 val timedOut = watchdog?.state(sessionId) == WatchdogState.TIMEOUT
                 watchdog?.complete(sessionId, if (timedOut) WatchdogState.TIMEOUT else WatchdogState.STOPPED)
                 finishIfCurrent(sessionId, active, if (timedOut) ScriptState.TIMEOUT else if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED,
