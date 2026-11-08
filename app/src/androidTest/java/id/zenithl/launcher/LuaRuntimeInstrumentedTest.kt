@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(AndroidJUnit4::class)
 class LuaRuntimeInstrumentedTest {
@@ -64,6 +65,23 @@ class LuaRuntimeInstrumentedTest {
             engine.stop("stop")
             assertTrue("Lua instruction hook did not process Stop", stopped.await(5, TimeUnit.SECONDS))
         } finally { engine.close("stop") }
+    }
+
+    @Test fun closingSessionStopsRuntimeAndDiscardsQueuedScripts() {
+        val engine = NativeLuaExecutionEngine()
+        val started = CountDownLatch(1)
+        val queuedStarted = AtomicBoolean(false)
+        engine.execute("close", "long", "while true do end", "Long.lua", listener(started, CountDownLatch(1), null))
+        assertTrue("Long-running script did not start", started.await(5, TimeUnit.SECONDS))
+
+        engine.execute("close", "queued", "queuedStarted = true", "Queued.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() { queuedStarted.set(true) }
+            override fun onCompleted() = Unit
+            override fun onError(trace: String) = Unit
+            override fun onStopped() = Unit
+        })
+        engine.close("close")
+        assertFalse("A queued script ran after its session was closed", queuedStarted.get())
     }
 
     @Test fun pauseAndResumeAreHandledByNativeInstructionHook() {
