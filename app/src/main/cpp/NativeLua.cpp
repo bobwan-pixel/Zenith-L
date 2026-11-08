@@ -106,7 +106,7 @@ void registerHostApi(lua_State* state, const std::string& appVersion) {
     lua_pushstring(state, appVersion.c_str());
     lua_pushcclosure(state, getZenithVersion, 1);
     lua_setfield(state, -2, "getVersion");
-    lua_pushstring(state, "0.3");
+    lua_pushstring(state, "0.4");
     lua_setfield(state, -2, "apiVersion");
     lua_pushstring(state, "INTERFACE_ONLY");
     lua_setfield(state, -2, "gameBridgeStatus");
