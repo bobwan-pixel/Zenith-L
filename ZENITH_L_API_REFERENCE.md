@@ -24,7 +24,8 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | `Zenith.getRuntimeInfo()` | → table | IMPLEMENTED | Returns `luaVersion`, `memoryLimitBytes`, and `maxSessions`. |
 | `Zenith.getGameInfo()` / `getGameVersion()` | → table / string? | INTERFACE_ONLY | Package detector exists; Lua binding and live bridge state are absent. |
 | `Zenith.getBridgeStatus()` | → string | IMPLEMENTED | Returns `UNAVAILABLE` while Game Bridge is not implemented. `Zenith.gameBridgeStatus` exposes the same state. |
-| `Zenith.getSessionInfo()` | → table | IMPLEMENTED | Returns the current isolated runtime session `id` and `runtimeStatus`. |\n| `Zenith.getSessions()` | → varies | INTERFACE_ONLY | Session manager exists in Kotlin; collection binding is pending. |
+| `Zenith.getSessionInfo()` | → table | IMPLEMENTED | Returns the current isolated runtime session `id` and `runtimeStatus`. |
+| `Zenith.getSessions()` | → varies | INTERFACE_ONLY | Session manager exists in Kotlin; collection binding is pending. |
 | `Zenith.getBots()` | → varies | INTERFACE_ONLY | Kotlin BotManager façade exists; no Lua binding or live sessions. |
 | `Zenith.getBot(id)` | id → varies | INTERFACE_ONLY | Lua binding pending. |
 | `Zenith.startBot(id)` | id → varies | INTERFACE_ONLY | GameBridge unavailable; session start is refused. |
@@ -44,6 +45,10 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | `runThread(fn,args?)` / `runCoroutine(fn,args?)` | function → task/thread | NOT_IMPLEMENTED | Coroutine library exists; GL lifecycle adapters do not. |
 
 The runtime currently exposes `Zenith.getVersion()`, `Zenith.getRuntimeInfo()`, `Zenith.getSessionInfo()`, and `Zenith.getBridgeStatus()` as callable Lua functions. Game-dependent names are registered as explicit unavailable stubs and raise an `INTERFACE_ONLY` error; they do not silently return fabricated game data. The runtime opens only the base, table, string, math, UTF-8, and coroutine libraries. File loading, package, IO, OS, and debug libraries are not exposed. Item lookup exists in the app-global Kotlin database but is not currently bound into Lua.
+
+## Lua output
+
+The global Lua `print(...)` function converts each argument to a string and joins multiple arguments with tab characters. Output is sent to Android Logcat under the `ZenithLua` tag and forwarded to the active execution listener, where ScriptManager records it in the in-app logger with the script and session IDs. This is diagnostic output only; it does not expose a game bridge or grant scripts access to Android APIs.
 
 ## Object models
 
