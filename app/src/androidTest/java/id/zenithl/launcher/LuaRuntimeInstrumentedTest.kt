@@ -179,7 +179,11 @@ class LuaRuntimeInstrumentedTest {
             assertTrue("Memory exhaustion should be reported as a Lua error", error.isNotBlank())
             assertEquals(
                 "",
-                execute(engine, "memory-limit", "collectgarbage('collect'); assert(20 + 22 == 42)")
+                execute(
+                    engine,
+                    "memory-limit",
+                    "collectgarbage('collect'); local value = string.rep('y', 3 * 1024 * 1024); assert(#value == 3 * 1024 * 1024); value = nil; collectgarbage('collect')"
+                )
             )
         } finally {
             engine.close("memory-limit")
