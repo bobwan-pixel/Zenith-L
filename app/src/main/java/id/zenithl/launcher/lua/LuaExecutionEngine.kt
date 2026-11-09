@@ -65,7 +65,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                 if (session.closed.get()) {
                     NativeLua.nativeClose(session.nativeSessionId)
                     session.created.set(false)
-                    listener.onStopped()
+                    notifyListener { listener.onStopped() }
                     return@task
                 }
                 val control = synchronized(session.controlLock) {
@@ -80,7 +80,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     }
                 }
                 if (control == CONTROL_STOP) {
-                    listener.onStopped()
+                    notifyListener { listener.onStopped() }
                     return@task
                 }
                 notifyListener { listener.onStarted() }
