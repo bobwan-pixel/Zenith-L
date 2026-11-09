@@ -64,7 +64,13 @@ void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t new
         return nullptr;
     }
     const size_t accountedOld = pointer == nullptr ? 0 : oldSize;
-    if (newSize > accountedOld && runtime->allocatedBytes + (newSize - accountedOld) > Runtime::memoryLimitBytes) return nullptr;
+    if (newSize > accountedOld) {
+        const size_t additionalBytes = newSize - accountedOld;
+        if (runtime->allocatedBytes > Runtime::memoryLimitBytes ||
+            additionalBytes > Runtime::memoryLimitBytes - runtime->allocatedBytes) {
+            return nullptr;
+        }
+    }
     void* resized = std::realloc(pointer, newSize);
     if (resized != nullptr) runtime->allocatedBytes = runtime->allocatedBytes - std::min(runtime->allocatedBytes, accountedOld) + newSize;
     return resized;
