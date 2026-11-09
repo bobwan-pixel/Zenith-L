@@ -127,7 +127,7 @@ class LuaRuntimeInstrumentedTest {
         try {
             val started = CountDownLatch(1)
             val completed = CountDownLatch(1)
-            engine.execute("pause", "finite", "local total=0; for i=1,20000000 do total=total+i end", "Pause.lua", listener(started, completed, null))
+            engine.execute("pause", "finite", "local total=0; for i=1,5000000 do total=total+i end", "Pause.lua", listener(started, completed, null))
             assertTrue(started.await(5, TimeUnit.SECONDS))
             engine.pause("pause")
             assertFalse("Lua continued while paused", completed.await(250, TimeUnit.MILLISECONDS))
