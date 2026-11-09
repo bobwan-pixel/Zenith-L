@@ -88,6 +88,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     if (!session.closed.get()) listener.onOutput(message)
                 }
                 val error = NativeLua.nativeExecute(session.nativeSessionId, source, "@$chunkName", outputListener)
+                    ?: throw IllegalStateException("Native Lua execution returned no result")
                 when {
                     session.closed.get() -> listener.onStopped()
                     error.isEmpty() -> listener.onCompleted()
