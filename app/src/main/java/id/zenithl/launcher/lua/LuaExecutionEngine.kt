@@ -29,6 +29,8 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
         val nativeSessionId: String = java.util.UUID.randomUUID().toString(),
         val created: AtomicBoolean = AtomicBoolean(),
         val closed: AtomicBoolean = AtomicBoolean(),
+        val requestedControl: java.util.concurrent.atomic.AtomicInteger = java.util.concurrent.atomic.AtomicInteger(CONTROL_RUNNING),
+        val controlLock: Any = Any(),
     )
 
     private val sessions = java.util.concurrent.ConcurrentHashMap<String, SessionRuntime>()
@@ -66,7 +68,21 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     listener.onStopped()
                     return@task
                 }
-                NativeLua.nativeControl(session.nativeSessionId, 0)
+                val control = synchronized(session.controlLock) {
+                    if (session.closed.get()) {
+                        CONTROL_STOP
+                    } else {
+                        val requested = session.requestedControl.get()
+                        if (requested != CONTROL_STOP) {
+                            NativeLua.nativeControl(session.nativeSessionId, requested)
+                        }
+                        requested
+                    }
+                }
+                if (control == CONTROL_STOP) {
+                    listener.onStopped()
+                    return@task
+                }
                 listener.onStarted()
                 val outputListener = NativeLua.OutputListener { message ->
                     if (!session.closed.get()) listener.onOutput(message)
@@ -81,20 +97,29 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
             } catch (error: Throwable) {
                 if (session.closed.get()) listener.onStopped()
                 else listener.onError("${error::class.java.simpleName}: ${error.message ?: "Lua runtime failure"}")
+            } finally {
+                synchronized(session.controlLock) {
+                    session.requestedControl.set(CONTROL_RUNNING)
+                }
             }
         }
     }
 
-    override fun pause(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 1) }
-    }
+    override fun pause(sessionId: String) = requestControl(sessionId, CONTROL_PAUSED)
 
-    override fun resume(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 0) }
-    }
+    override fun resume(sessionId: String) = requestControl(sessionId, CONTROL_RUNNING)
 
-    override fun stop(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 2) }
+    override fun stop(sessionId: String) = requestControl(sessionId, CONTROL_STOP)
+
+    private fun requestControl(sessionId: String, action: Int) {
+        val session = sessions[sessionId] ?: return
+        synchronized(session.controlLock) {
+            if (session.closed.get()) return
+            session.requestedControl.set(action)
+            if (session.created.get()) {
+                NativeLua.nativeControl(session.nativeSessionId, action)
+            }
+        }
     }
 
     override fun close(sessionId: String) {
@@ -112,5 +137,10 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
         }
     }
 
-    companion object { const val MAX_SESSIONS = 3 }
+    companion object {
+        const val MAX_SESSIONS = 3
+        private const val CONTROL_RUNNING = 0
+        private const val CONTROL_PAUSED = 1
+        private const val CONTROL_STOP = 2
+    }
 }
