@@ -125,8 +125,11 @@ class LuaRuntimeInstrumentedTest {
     @Test fun closedSessionIdCanBeReusedWithoutStaleNativeRuntimeCollision() {
         val engine = NativeLuaExecutionEngine()
         val oldStarted = CountDownLatch(1)
-        engine.execute("reused-session", "old", "while true do end", "Old.lua", object : LuaExecutionEngine.Listener {
-            override fun onStarted() { oldStarted.countDown() }
+        engine.execute("reused-session", "old", """print("old-runtime-entered"); while true do end""", "Old.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() = Unit
+            override fun onOutput(message: String) {
+                if (message == "old-runtime-entered") oldStarted.countDown()
+            }
             override fun onCompleted() = Unit
             override fun onError(trace: String) = Unit
             override fun onStopped() = Unit
