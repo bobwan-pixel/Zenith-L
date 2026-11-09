@@ -94,7 +94,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     error.contains("Execution stopped by user") -> listener.onStopped()
                     else -> listener.onError(error)
                 }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (session.closed.get()) listener.onStopped()
                 else listener.onError("${error::class.java.simpleName}: ${error.message ?: "Lua runtime failure"}")
             } finally {
