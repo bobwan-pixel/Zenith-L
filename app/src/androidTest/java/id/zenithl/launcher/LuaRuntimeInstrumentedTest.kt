@@ -122,6 +122,35 @@ class LuaRuntimeInstrumentedTest {
         assertFalse("A queued script ran after its session was closed", queuedStarted.get())
     }
 
+    @Test fun closedSessionIdCanBeReusedWithoutStaleNativeRuntimeCollision() {
+        val engine = NativeLuaExecutionEngine()
+        val oldStarted = CountDownLatch(1)
+        engine.execute("reused-session", "old", "while true do end", "Old.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() { oldStarted.countDown() }
+            override fun onCompleted() = Unit
+            override fun onError(trace: String) = Unit
+            override fun onStopped() = Unit
+        })
+        assertTrue("Old Lua runtime did not start", oldStarted.await(5, TimeUnit.SECONDS))
+
+        engine.close("reused-session")
+
+        val completed = CountDownLatch(1)
+        var error: String? = null
+        engine.execute("reused-session", "new", """assert(Zenith.getSessionInfo().id == "reused-session")""", "New.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() = Unit
+            override fun onCompleted() { completed.countDown() }
+            override fun onError(trace: String) { error = trace; completed.countDown() }
+            override fun onStopped() { error = "STOPPED"; completed.countDown() }
+        })
+        try {
+            assertTrue("New runtime collided with the closed runtime", completed.await(10, TimeUnit.SECONDS))
+            assertNull(error)
+        } finally {
+            engine.close("reused-session")
+        }
+    }
+
     @Test fun pauseAndResumeAreHandledByNativeInstructionHook() {
         val engine = NativeLuaExecutionEngine()
         try {
