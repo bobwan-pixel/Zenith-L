@@ -24,7 +24,7 @@ The in-app API browser reads the same `ApiRegistry` metadata used by completion/
 | `Zenith.getRuntimeInfo()` | → table | IMPLEMENTED | Returns `luaVersion`, `memoryLimitBytes`, and `maxSessions`. |
 | `Zenith.getGameInfo()` / `getGameVersion()` | → table / string? | INTERFACE_ONLY | Package detector exists; Lua binding and live bridge state are absent. |
 | `Zenith.getBridgeStatus()` | → string | IMPLEMENTED | Returns `UNAVAILABLE` while Game Bridge is not implemented. `Zenith.gameBridgeStatus` exposes the same state. |
-| `Zenith.getSessionInfo()` | → table | IMPLEMENTED | Returns the current isolated runtime session `id` and `runtimeStatus`. |
+| `Zenith.getSessionInfo()` | → table | IMPLEMENTED | Returns the current isolated runtime session `id` and `runtimeStatus`. While this function is executing inside a Lua script, `runtimeStatus` is `RUNNING`. |
 | `Zenith.getSessions()` | → varies | INTERFACE_ONLY | Session manager exists in Kotlin; collection binding is pending. |
 | `Zenith.getBots()` | → varies | INTERFACE_ONLY | Kotlin BotManager façade exists; no Lua binding or live sessions. |
 | `Zenith.getBot(id)` | id → varies | INTERFACE_ONLY | Lua binding pending. |
