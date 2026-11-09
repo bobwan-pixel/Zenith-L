@@ -373,6 +373,34 @@ void registerHostApi(lua_State* state, const std::string& appVersion, const std:
     lua_pop(state, 1);
 }
 
+struct RuntimeInitContext {
+    const std::string* appVersion;
+    const std::string* sessionId;
+};
+
+// Run every allocation-capable Lua initialization operation inside lua_pcall.
+// Lua's default panic handler aborts the process for an error outside a protected call.
+int initializeRuntime(lua_State* state) {
+    auto* context = static_cast<RuntimeInitContext*>(lua_touserdata(state, 1));
+    if (context == nullptr || context->appVersion == nullptr || context->sessionId == nullptr) {
+        return luaL_error(state, "Invalid runtime initialization context");
+    }
+    openLibrary(state, "_G", luaopen_base);
+    openLibrary(state, "table", luaopen_table);
+    openLibrary(state, "string", luaopen_string);
+    openLibrary(state, "math", luaopen_math);
+    openLibrary(state, "utf8", luaopen_utf8);
+    openLibrary(state, "coroutine", luaopen_coroutine);
+    registerHostApi(state, *context->appVersion, *context->sessionId);
+    return 0;
+}
+
+int tracebackHandler(lua_State* state) {
+    const char* error = lua_tostring(state, 1);
+    luaL_traceback(state, state, error == nullptr ? "Unknown Lua error" : error, 1);
+    return 1;
+}
+
 std::shared_ptr<Runtime> findRuntime(const std::string& id) {
     std::lock_guard<std::mutex> lock(runtimesMutex);
     const auto found = runtimes.find(id);
@@ -392,13 +420,10 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
         runtime->state = lua_newstate(boundedAllocator, runtime.get());
         if (runtime->state == nullptr) return JNI_FALSE;
         *static_cast<Runtime**>(lua_getextraspace(runtime->state)) = runtime.get();
-        openLibrary(runtime->state, "_G", luaopen_base);
-        openLibrary(runtime->state, "table", luaopen_table);
-        openLibrary(runtime->state, "string", luaopen_string);
-        openLibrary(runtime->state, "math", luaopen_math);
-        openLibrary(runtime->state, "utf8", luaopen_utf8);
-        openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-        registerHostApi(runtime->state, version, displayId);
+        RuntimeInitContext initContext{&version, &displayId};
+        lua_pushcfunction(runtime->state, initializeRuntime);
+        lua_pushlightuserdata(runtime->state, &initContext);
+        if (lua_pcall(runtime->state, 1, 0, 0) != LUA_OK) return JNI_FALSE;
         std::lock_guard<std::mutex> lock(runtimesMutex);
         if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
         runtimes.emplace(id, std::move(runtime));
@@ -428,10 +453,16 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstri
             lua_settop(runtime->state, 0);
             return newJavaString(env, "");
         }
-        const char* error = lua_tostring(runtime->state, -1);
-        luaL_traceback(runtime->state, runtime->state, error == nullptr ? "Unknown Lua error" : error, 1);
+        // Traceback generation can allocate. Protect it so memory exhaustion becomes
+        // a normal Lua error instead of reaching Lua's process-aborting panic handler.
+        lua_pushcfunction(runtime->state, tracebackHandler);
+        lua_insert(runtime->state, -2);
+        const int tracebackStatus = lua_pcall(runtime->state, 1, 1, 0);
         const char* trace = lua_tostring(runtime->state, -1);
-        jstring result = newJavaString(env, trace == nullptr ? "Lua execution failed" : trace);
+        const char* fallback = tracebackStatus == LUA_OK
+            ? "Lua execution failed"
+            : "Lua execution failed (traceback allocation failed)";
+        jstring result = newJavaString(env, trace == nullptr ? fallback : trace);
         lua_settop(runtime->state, 0);
         return result;
     } catch (...) {
