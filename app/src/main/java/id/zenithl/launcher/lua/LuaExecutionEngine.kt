@@ -26,6 +26,7 @@ interface LuaExecutionEngine {
 class NativeLuaExecutionEngine : LuaExecutionEngine {
     private data class SessionRuntime(
         val executor: ExecutorService,
+        val nativeSessionId: String = java.util.UUID.randomUUID().toString(),
         val created: AtomicBoolean = AtomicBoolean(),
         val closed: AtomicBoolean = AtomicBoolean(),
     )
@@ -53,24 +54,24 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     return@task
                 }
                 if (!session.created.get()) {
-                    check(NativeLua.nativeCreate(sessionId, BuildConfig.VERSION_NAME)) {
+                    check(NativeLua.nativeCreate(session.nativeSessionId, BuildConfig.VERSION_NAME, sessionId)) {
                         "Could not initialize Lua 5.4.9 state for session $sessionId"
                     }
                     session.created.set(true)
                 }
                 // close() may race with nativeCreate(); close the just-created state instead of leaking it.
                 if (session.closed.get()) {
-                    NativeLua.nativeClose(sessionId)
+                    NativeLua.nativeClose(session.nativeSessionId)
                     session.created.set(false)
                     listener.onStopped()
                     return@task
                 }
-                NativeLua.nativeControl(sessionId, 0)
+                NativeLua.nativeControl(session.nativeSessionId, 0)
                 listener.onStarted()
                 val outputListener = NativeLua.OutputListener { message ->
                     if (!session.closed.get()) listener.onOutput(message)
                 }
-                val error = NativeLua.nativeExecute(sessionId, source, "@$chunkName", outputListener)
+                val error = NativeLua.nativeExecute(session.nativeSessionId, source, "@$chunkName", outputListener)
                 when {
                     session.closed.get() -> listener.onStopped()
                     error.isEmpty() -> listener.onCompleted()
@@ -85,15 +86,15 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
     }
 
     override fun pause(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(sessionId, 1) }
+        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 1) }
     }
 
     override fun resume(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(sessionId, 0) }
+        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 0) }
     }
 
     override fun stop(sessionId: String) {
-        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(sessionId, 2) }
+        sessions[sessionId]?.takeIf { !it.closed.get() && it.created.get() }?.let { NativeLua.nativeControl(it.nativeSessionId, 2) }
     }
 
     override fun close(sessionId: String) {
@@ -102,9 +103,10 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
         } ?: return
 
         // Stop native execution, discard queued tasks, and remove the native state.
-        NativeLua.nativeControl(sessionId, 2)
+        // The native ID is unique per SessionRuntime, so a newly opened session with
+        // the same public ID cannot accidentally address this runtime generation.
+        NativeLua.nativeClose(runtime.nativeSessionId)
         runtime.executor.shutdownNow()
-        NativeLua.nativeClose(sessionId)
     }
 
     companion object { const val MAX_SESSIONS = 3 }
