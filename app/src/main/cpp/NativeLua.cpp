@@ -119,28 +119,47 @@ std::u16string utf8ToUtf16(const std::string& input) {
     return output;
 }
 
+class ScopedLocalRef {
+public:
+    ScopedLocalRef(JNIEnv* env, jobject value) : env_(env), value_(value) {}
+    ~ScopedLocalRef() {
+        if (value_ != nullptr) env_->DeleteLocalRef(value_);
+    }
+
+    ScopedLocalRef(const ScopedLocalRef&) = delete;
+    ScopedLocalRef& operator=(const ScopedLocalRef&) = delete;
+
+    jobject get() const { return value_; }
+
+private:
+    JNIEnv* env_;
+    jobject value_;
+};
+
 void deliverOutput(const std::string& message) {
     if (outputEnv == nullptr || outputListener == nullptr) return;
 
-    jclass listenerClass = outputEnv->GetObjectClass(outputListener);
-    if (listenerClass == nullptr) {
+    ScopedLocalRef listenerClass(outputEnv, outputEnv->GetObjectClass(outputListener));
+    if (listenerClass.get() == nullptr) {
         if (outputEnv->ExceptionCheck()) outputEnv->ExceptionClear();
         return;
     }
 
-    const jmethodID callback = outputEnv->GetMethodID(listenerClass, "onOutput", "(Ljava/lang/String;)V");
+    const jmethodID callback = outputEnv->GetMethodID(
+        static_cast<jclass>(listenerClass.get()), "onOutput", "(Ljava/lang/String;)V");
     if (callback != nullptr) {
         const std::u16string utf16 = utf8ToUtf16(message);
-        jstring value = outputEnv->NewString(
+        ScopedLocalRef value(outputEnv, outputEnv->NewString(
             reinterpret_cast<const jchar*>(utf16.data()),
-            static_cast<jsize>(utf16.size()));
-        if (value != nullptr) {
-            outputEnv->CallVoidMethod(outputListener, callback, value);
-            outputEnv->DeleteLocalRef(value);
+            static_cast<jsize>(utf16.size())));
+        if (value.get() != nullptr) {
+            outputEnv->CallVoidMethod(outputListener, callback, value.get());
         }
     }
+
+    // Output is best-effort: a listener exception must not leave a pending
+    // JNI exception that breaks the Lua execution or later JNI calls.
     if (outputEnv->ExceptionCheck()) outputEnv->ExceptionClear();
-    outputEnv->DeleteLocalRef(listenerClass);
 }
 
 void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
