@@ -168,6 +168,24 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("pause") }
     }
 
+    @Test fun memoryLimitFailureReturnsAnErrorWithoutDestroyingTheRuntime() {
+        val engine = NativeLuaExecutionEngine()
+        try {
+            val error = execute(
+                engine,
+                "memory-limit",
+                """local chunks = {}; while true do chunks[#chunks + 1] = string.rep(\"x\", 4096) end"""
+            )
+            assertTrue("Memory exhaustion should be reported as a Lua error", error.isNotBlank())
+            assertEquals(
+                "",
+                execute(engine, "memory-limit", "collectgarbage('collect'); assert(20 + 22 == 42)")
+            )
+        } finally {
+            engine.close("memory-limit")
+        }
+    }
+
     private fun execute(engine: NativeLuaExecutionEngine, session: String, source: String, name: String = "Test.lua"): String {
         val completed = CountDownLatch(1)
         var result: String? = null
