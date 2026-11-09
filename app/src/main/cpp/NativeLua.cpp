@@ -146,20 +146,28 @@ void deliverOutput(const std::string& message) {
 void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
     auto* runtime = static_cast<Runtime*>(userData);
     if (newSize == 0) {
-        std::free(pointer);
-        runtime->allocatedBytes -= std::min(runtime->allocatedBytes, oldSize);
+        // Lua may pass a type tag in oldSize when pointer is null. It is not
+        // an allocation size and must never affect the memory counter.
+        if (pointer != nullptr) {
+            std::free(pointer);
+            runtime->allocatedBytes -= std::min(runtime->allocatedBytes, oldSize);
+        }
         return nullptr;
     }
+
+    // Per Lua's allocator contract, oldSize is meaningful only for a non-null
+    // pointer. Treat a null pointer as a fresh allocation.
     const size_t accountedOld = pointer == nullptr ? 0 : oldSize;
-    if (newSize > accountedOld) {
-        const size_t additionalBytes = newSize - accountedOld;
-        if (runtime->allocatedBytes > Runtime::memoryLimitBytes ||
-            additionalBytes > Runtime::memoryLimitBytes - runtime->allocatedBytes) {
-            return nullptr;
-        }
+    const size_t retainedBytes =
+        runtime->allocatedBytes - std::min(runtime->allocatedBytes, accountedOld);
+
+    if (newSize > Runtime::memoryLimitBytes ||
+        retainedBytes > Runtime::memoryLimitBytes - newSize) {
+        return nullptr;
     }
+
     void* resized = std::realloc(pointer, newSize);
-    if (resized != nullptr) runtime->allocatedBytes = runtime->allocatedBytes - std::min(runtime->allocatedBytes, accountedOld) + newSize;
+    if (resized != nullptr) runtime->allocatedBytes = retainedBytes + newSize;
     return resized;
 }
 
