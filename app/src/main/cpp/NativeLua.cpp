@@ -35,6 +35,69 @@ std::unordered_map<std::string, std::shared_ptr<Runtime>> runtimes;
 thread_local JNIEnv* outputEnv = nullptr;
 thread_local jobject outputListener = nullptr;
 
+std::u16string utf8ToUtf16(const std::string& input) {
+    std::u16string output;
+    output.reserve(input.size());
+
+    for (size_t index = 0; index < input.size();) {
+        const auto first = static_cast<unsigned char>(input[index]);
+        uint32_t codePoint = 0;
+        size_t length = 0;
+
+        if (first <= 0x7FU) {
+            codePoint = first;
+            length = 1;
+        } else if (first >= 0xC2U && first <= 0xDFU && index + 1 < input.size()) {
+            const auto second = static_cast<unsigned char>(input[index + 1]);
+            if ((second & 0xC0U) == 0x80U) {
+                codePoint = ((first & 0x1FU) << 6U) | (second & 0x3FU);
+                length = 2;
+            }
+        } else if (first >= 0xE0U && first <= 0xEFU && index + 2 < input.size()) {
+            const auto second = static_cast<unsigned char>(input[index + 1]);
+            const auto third = static_cast<unsigned char>(input[index + 2]);
+            const bool validSecond = (second & 0xC0U) == 0x80U &&
+                (first != 0xE0U || second >= 0xA0U) &&
+                (first != 0xEDU || second <= 0x9FU);
+            if (validSecond && (third & 0xC0U) == 0x80U) {
+                codePoint = ((first & 0x0FU) << 12U) |
+                    ((second & 0x3FU) << 6U) | (third & 0x3FU);
+                length = 3;
+            }
+        } else if (first >= 0xF0U && first <= 0xF4U && index + 3 < input.size()) {
+            const auto second = static_cast<unsigned char>(input[index + 1]);
+            const auto third = static_cast<unsigned char>(input[index + 2]);
+            const auto fourth = static_cast<unsigned char>(input[index + 3]);
+            const bool validSecond = (second & 0xC0U) == 0x80U &&
+                (first != 0xF0U || second >= 0x90U) &&
+                (first != 0xF4U || second <= 0x8FU);
+            if (validSecond && (third & 0xC0U) == 0x80U &&
+                (fourth & 0xC0U) == 0x80U) {
+                codePoint = ((first & 0x07U) << 18U) |
+                    ((second & 0x3FU) << 12U) |
+                    ((third & 0x3FU) << 6U) | (fourth & 0x3FU);
+                length = 4;
+            }
+        }
+
+        if (length == 0) {
+            output.push_back(static_cast<char16_t>(0xFFFDU));
+            ++index;
+            continue;
+        }
+
+        if (codePoint <= 0xFFFFU) {
+            output.push_back(static_cast<char16_t>(codePoint));
+        } else {
+            codePoint -= 0x10000U;
+            output.push_back(static_cast<char16_t>(0xD800U + (codePoint >> 10U)));
+            output.push_back(static_cast<char16_t>(0xDC00U + (codePoint & 0x3FFU)));
+        }
+        index += length;
+    }
+    return output;
+}
+
 void deliverOutput(const std::string& message) {
     if (outputEnv == nullptr || outputListener == nullptr) return;
 
@@ -46,7 +109,10 @@ void deliverOutput(const std::string& message) {
 
     const jmethodID callback = outputEnv->GetMethodID(listenerClass, "onOutput", "(Ljava/lang/String;)V");
     if (callback != nullptr) {
-        jstring value = outputEnv->NewStringUTF(message.c_str());
+        const std::u16string utf16 = utf8ToUtf16(message);
+        jstring value = outputEnv->NewString(
+            reinterpret_cast<const jchar*>(utf16.data()),
+            static_cast<jsize>(utf16.size()));
         if (value != nullptr) {
             outputEnv->CallVoidMethod(outputListener, callback, value);
             outputEnv->DeleteLocalRef(value);
