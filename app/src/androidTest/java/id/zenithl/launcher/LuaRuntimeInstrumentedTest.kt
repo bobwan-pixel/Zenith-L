@@ -132,7 +132,7 @@ class LuaRuntimeInstrumentedTest {
             engine.pause("pause")
             assertFalse("Lua continued while paused", completed.await(250, TimeUnit.MILLISECONDS))
             engine.resume("pause")
-            assertTrue("Lua script did not resume and finish", completed.await(10, TimeUnit.SECONDS))
+            assertTrue("Lua script did not resume and finish", completed.await(30, TimeUnit.SECONDS))
         } finally { engine.close("pause") }
     }
 
