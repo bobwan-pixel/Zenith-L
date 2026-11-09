@@ -122,42 +122,63 @@ class ScriptManager(
         check(source.isNotBlank()) { "Script is empty" }
         val active = ActiveRun(id)
         running[sessionId] = active
-        watchdog?.start(sessionId, id)
-        saveState(id, ScriptState.STARTING, error = null)
-        engine.execute(sessionId, id, source, script.name, object : LuaExecutionEngine.Listener {
-            override fun onStarted() {
-                if (running[sessionId] != active) return
-                update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
-                logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
+
+        try {
+            watchdog?.start(sessionId, id)
+            saveState(id, ScriptState.STARTING, error = null)
+            engine.execute(sessionId, id, source, script.name, object : LuaExecutionEngine.Listener {
+                override fun onStarted() {
+                    if (running[sessionId] != active) return
+                    update(id) { it.copy(state = ScriptState.RUNNING, lastRun = System.currentTimeMillis(), updatedAt = System.currentTimeMillis()) }
+                    logger.log(LogEntry(level = LogLevel.INFO, component = "ScriptManager", message = "Script started: ${script.name}", scriptId = id, sessionId = sessionId))
+                }
+                override fun onOutput(message: String) {
+                    if (running[sessionId] != active) return
+                    logger.log(LogEntry(level = LogLevel.INFO, component = "Lua", message = message, scriptId = id, sessionId = sessionId))
+                }
+                override fun onCompleted() {
+                    if (running[sessionId] != active) return
+                    watchdog?.complete(sessionId)
+                    finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}")
+                }
+                override fun onStopped() {
+                    if (running[sessionId] != active) return
+                    val timedOut = watchdog?.state(sessionId) == WatchdogState.TIMEOUT
+                    watchdog?.complete(sessionId, if (timedOut) WatchdogState.TIMEOUT else WatchdogState.STOPPED)
+                    finishIfCurrent(sessionId, active, if (timedOut) ScriptState.TIMEOUT else if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED,
+                        if (timedOut) "Script exceeded watchdog limit: ${script.name}" else "Script stopped: ${script.name}")
+                }
+                override fun onError(trace: String) {
+                    if (running[sessionId] != active) return
+                    watchdog?.reportError(sessionId, trace.lineSequence().firstOrNull().orEmpty(), trace)
+                    val line = Regex("\\\\.lua:(\\\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    val error = ScriptError(script.name, script.path, line, trace.lineSequence().firstOrNull().orEmpty(), trace, System.currentTimeMillis(), sessionId)
+                    val timeout = trace.contains("runtime budget", ignoreCase = true) || watchdog?.state(sessionId) == WatchdogState.TIMEOUT
+                    watchdog?.complete(sessionId, if (timeout) WatchdogState.TIMEOUT else WatchdogState.ERROR)
+                    saveState(id, if (timeout) ScriptState.TIMEOUT else ScriptState.ERROR, error.toJson())
+                    running.remove(sessionId, active)
+                    logger.log(LogEntry(level = LogLevel.ERROR, component = "LuaRuntime", message = error.message, scriptId = id, sessionId = sessionId, throwable = error.stackTrace))
+                }
+            })
+        } catch (failure: Throwable) {
+            // A synchronous startup failure must not strand the session in STARTING or keep
+            // its watchdog alive. Removing the token also makes any late callback harmless.
+            running.remove(sessionId, active)
+            runCatching { watchdog?.complete(sessionId, WatchdogState.ERROR) }
+            val message = "${failure::class.java.simpleName}: ${failure.message ?: "Script startup failed"}"
+            runCatching { saveState(id, ScriptState.ERROR, message) }
+            runCatching {
+                logger.log(LogEntry(
+                    level = LogLevel.ERROR,
+                    component = "ScriptManager",
+                    message = "Could not start script: ${script.name}",
+                    scriptId = id,
+                    sessionId = sessionId,
+                    throwable = failure.stackTraceToString(),
+                ))
             }
-            override fun onOutput(message: String) {
-                if (running[sessionId] != active) return
-                logger.log(LogEntry(level = LogLevel.INFO, component = "Lua", message = message, scriptId = id, sessionId = sessionId))
-            }
-            override fun onCompleted() {
-                if (running[sessionId] != active) return
-                watchdog?.complete(sessionId)
-                finishIfCurrent(sessionId, active, ScriptState.ENABLED, "Script completed: ${script.name}")
-            }
-            override fun onStopped() {
-                if (running[sessionId] != active) return
-                val timedOut = watchdog?.state(sessionId) == WatchdogState.TIMEOUT
-                watchdog?.complete(sessionId, if (timedOut) WatchdogState.TIMEOUT else WatchdogState.STOPPED)
-                finishIfCurrent(sessionId, active, if (timedOut) ScriptState.TIMEOUT else if (required(id).enabled) ScriptState.ENABLED else ScriptState.DISABLED,
-                    if (timedOut) "Script exceeded watchdog limit: ${script.name}" else "Script stopped: ${script.name}")
-            }
-            override fun onError(trace: String) {
-                if (running[sessionId] != active) return
-                watchdog?.reportError(sessionId, trace.lineSequence().firstOrNull().orEmpty(), trace)
-                val line = Regex("\\.lua:(\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
-                val error = ScriptError(script.name, script.path, line, trace.lineSequence().firstOrNull().orEmpty(), trace, System.currentTimeMillis(), sessionId)
-                val timeout = trace.contains("runtime budget", ignoreCase = true) || watchdog?.state(sessionId) == WatchdogState.TIMEOUT
-                watchdog?.complete(sessionId, if (timeout) WatchdogState.TIMEOUT else WatchdogState.ERROR)
-                saveState(id, if (timeout) ScriptState.TIMEOUT else ScriptState.ERROR, error.toJson())
-                running.remove(sessionId, active)
-                logger.log(LogEntry(level = LogLevel.ERROR, component = "LuaRuntime", message = error.message, scriptId = id, sessionId = sessionId, throwable = error.stackTrace))
-            }
-        })
+            throw failure
+        }
     }
 
     fun pause(sessionId: String) {
