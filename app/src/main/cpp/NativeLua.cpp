@@ -193,14 +193,32 @@ std::string utf16ToUtf8(const jchar* chars, jsize length) {
     return output;
 }
 
+class ScopedStringChars {
+public:
+    ScopedStringChars(JNIEnv* env, jstring value)
+        : env_(env), value_(value), chars_(value == nullptr ? nullptr : env->GetStringChars(value, nullptr)) {}
+
+    ~ScopedStringChars() {
+        if (chars_ != nullptr) env_->ReleaseStringChars(value_, chars_);
+    }
+
+    ScopedStringChars(const ScopedStringChars&) = delete;
+    ScopedStringChars& operator=(const ScopedStringChars&) = delete;
+
+    const jchar* get() const { return chars_; }
+
+private:
+    JNIEnv* env_;
+    jstring value_;
+    const jchar* chars_;
+};
+
 std::string toString(JNIEnv* env, jstring value) {
     if (value == nullptr) return {};
     const jsize length = env->GetStringLength(value);
-    const jchar* chars = env->GetStringChars(value, nullptr);
-    if (chars == nullptr) return {};
-    std::string result = utf16ToUtf8(chars, length);
-    env->ReleaseStringChars(value, chars);
-    return result;
+    ScopedStringChars chars(env, value);
+    if (chars.get() == nullptr) return {};
+    return utf16ToUtf8(chars.get(), length);
 }
 
 jstring newJavaString(JNIEnv* env, const std::string& value) {
@@ -364,66 +382,87 @@ std::shared_ptr<Runtime> findRuntime(const std::string& id) {
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId, jstring appVersion) {
-    const std::string id = toString(env, sessionId);
-    const std::string version = toString(env, appVersion);
-    if (id.empty()) return JNI_FALSE;
-    auto runtime = std::make_shared<Runtime>();
-    runtime->id = id;
-    runtime->state = lua_newstate(boundedAllocator, runtime.get());
-    if (runtime->state == nullptr) return JNI_FALSE;
-    *static_cast<Runtime**>(lua_getextraspace(runtime->state)) = runtime.get();
-    openLibrary(runtime->state, "_G", luaopen_base);
-    openLibrary(runtime->state, "table", luaopen_table);
-    openLibrary(runtime->state, "string", luaopen_string);
-    openLibrary(runtime->state, "math", luaopen_math);
-    openLibrary(runtime->state, "utf8", luaopen_utf8);
-    openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-    registerHostApi(runtime->state, version, id);
-    // No file, process, package, dynamic-loader, or debug libraries are opened.
-    std::lock_guard<std::mutex> lock(runtimesMutex);
-    if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
-    runtimes.emplace(id, std::move(runtime));
-    return JNI_TRUE;
+    try {
+        const std::string id = toString(env, sessionId);
+        const std::string version = toString(env, appVersion);
+        if (id.empty() || env->ExceptionCheck()) return JNI_FALSE;
+        auto runtime = std::make_shared<Runtime>();
+        runtime->id = id;
+        runtime->state = lua_newstate(boundedAllocator, runtime.get());
+        if (runtime->state == nullptr) return JNI_FALSE;
+        *static_cast<Runtime**>(lua_getextraspace(runtime->state)) = runtime.get();
+        openLibrary(runtime->state, "_G", luaopen_base);
+        openLibrary(runtime->state, "table", luaopen_table);
+        openLibrary(runtime->state, "string", luaopen_string);
+        openLibrary(runtime->state, "math", luaopen_math);
+        openLibrary(runtime->state, "utf8", luaopen_utf8);
+        openLibrary(runtime->state, "coroutine", luaopen_coroutine);
+        registerHostApi(runtime->state, version, id);
+        std::lock_guard<std::mutex> lock(runtimesMutex);
+        if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
+        runtimes.emplace(id, std::move(runtime));
+        return JNI_TRUE;
+    } catch (...) {
+        // Never allow a C++ exception to cross the JNI boundary.
+        return JNI_FALSE;
+    }
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstring sessionId, jstring source, jstring chunkName, jobject listener) {
-    auto runtime = findRuntime(toString(env, sessionId));
-    if (runtime == nullptr || runtime->state == nullptr) return newJavaString(env, "Runtime not initialized");
-    const std::string code = toString(env, source);
-    const std::string name = toString(env, chunkName);
-    OutputCallbackScope outputScope(env, listener);
-    lua_sethook(runtime->state, instructionHook, LUA_MASKCOUNT, 1000);
-    int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
-    if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);
-    lua_sethook(runtime->state, nullptr, 0, 0);
-    if (status == LUA_OK) {
+    try {
+        auto runtime = findRuntime(toString(env, sessionId));
+        if (env->ExceptionCheck()) return nullptr;
+        if (runtime == nullptr || runtime->state == nullptr) return newJavaString(env, "Runtime not initialized");
+        const std::string code = toString(env, source);
+        const std::string name = toString(env, chunkName);
+        if (env->ExceptionCheck()) return nullptr;
+
+        OutputCallbackScope outputScope(env, listener);
+        lua_sethook(runtime->state, instructionHook, LUA_MASKCOUNT, 1000);
+        int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
+        if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);
+        lua_sethook(runtime->state, nullptr, 0, 0);
+        if (status == LUA_OK) {
+            lua_settop(runtime->state, 0);
+            return newJavaString(env, "");
+        }
+        const char* error = lua_tostring(runtime->state, -1);
+        luaL_traceback(runtime->state, runtime->state, error == nullptr ? "Unknown Lua error" : error, 1);
+        const char* trace = lua_tostring(runtime->state, -1);
+        jstring result = newJavaString(env, trace == nullptr ? "Lua execution failed" : trace);
         lua_settop(runtime->state, 0);
-        return newJavaString(env, "");
+        return result;
+    } catch (...) {
+        // The Kotlin engine treats a null result as a failed native call.
+        return nullptr;
     }
-    const char* error = lua_tostring(runtime->state, -1);
-    luaL_traceback(runtime->state, runtime->state, error == nullptr ? "Unknown Lua error" : error, 1);
-    const char* trace = lua_tostring(runtime->state, -1);
-    jstring result = newJavaString(env, trace == nullptr ? "Lua execution failed" : trace);
-    lua_settop(runtime->state, 0);
-    return result;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_id_zenithl_launcher_lua_NativeLua_nativeControl(JNIEnv* env, jobject, jstring sessionId, jint action) {
-    auto runtime = findRuntime(toString(env, sessionId));
-    if (runtime == nullptr) return;
-    const auto control = action == 1 ? Control::Paused : action == 2 ? Control::Stop : Control::Running;
-    runtime->control.store(control, std::memory_order_relaxed);
+    try {
+        auto runtime = findRuntime(toString(env, sessionId));
+        if (runtime == nullptr || env->ExceptionCheck()) return;
+        const auto control = action == 1 ? Control::Paused : action == 2 ? Control::Stop : Control::Running;
+        runtime->control.store(control, std::memory_order_relaxed);
+    } catch (...) {
+        // Control is best-effort; execution remains protected by the instruction hook.
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_id_zenithl_launcher_lua_NativeLua_nativeClose(JNIEnv* env, jobject, jstring sessionId) {
-    const std::string id = toString(env, sessionId);
-    std::lock_guard<std::mutex> lock(runtimesMutex);
-    const auto found = runtimes.find(id);
-    if (found != runtimes.end()) {
-        found->second->control.store(Control::Stop, std::memory_order_relaxed);
-        runtimes.erase(found);
+    try {
+        const std::string id = toString(env, sessionId);
+        if (env->ExceptionCheck()) return;
+        std::lock_guard<std::mutex> lock(runtimesMutex);
+        const auto found = runtimes.find(id);
+        if (found != runtimes.end()) {
+            found->second->control.store(Control::Stop, std::memory_order_relaxed);
+            runtimes.erase(found);
+        }
+    } catch (...) {
+        // The shared runtime remains valid for any active nativeExecute call.
     }
 }
