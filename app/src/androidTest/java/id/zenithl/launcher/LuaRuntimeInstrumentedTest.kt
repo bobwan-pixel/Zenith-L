@@ -174,7 +174,7 @@ class LuaRuntimeInstrumentedTest {
             val error = execute(
                 engine,
                 "memory-limit",
-                """local chunks = {}; while true do chunks[#chunks + 1] = string.rep(\"x\", 4096) end"""
+                """local chunks = {}; while true do chunks[#chunks + 1] = string.rep("x", 4096) end"""
             )
             assertTrue("Memory exhaustion should be reported as a Lua error", error.isNotBlank())
             assertEquals(
