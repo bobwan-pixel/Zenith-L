@@ -8,6 +8,7 @@ import id.zenithl.launcher.safety.ScriptWatchdog
 import id.zenithl.launcher.safety.WatchdogState
 import java.io.File
 import java.util.UUID
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 enum class ScriptState { DISABLED, ENABLED, STARTING, RUNNING, PAUSED, STOPPING, ERROR, TIMEOUT }
@@ -47,9 +48,7 @@ class ScriptManager(
     private val running = ConcurrentHashMap<String, ActiveRun>() // session -> isolated run
 
     fun list(): List<ScriptRecord> = repository.all()
-    fun stopAll() {
-        running.forEach { sessionId, _ -> stop(sessionId) }
-    }
+    fun stopAll() { Collections.list(running.keys()).forEach(::stop) }
     fun search(query: String): List<ScriptRecord> = list().filter { it.name.contains(query, true) }
     fun sort(favoritesFirst: Boolean = false): List<ScriptRecord> = list().sortedWith(compareByDescending<ScriptRecord> { favoritesFirst && it.favorite }.thenBy { it.name.lowercase() })
 
