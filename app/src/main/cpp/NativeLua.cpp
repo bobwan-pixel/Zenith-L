@@ -488,12 +488,20 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeClose(JNIEnv* env, jobject, jstring
     try {
         const std::string id = toString(env, sessionId);
         if (env->ExceptionCheck()) return;
-        std::lock_guard<std::mutex> lock(runtimesMutex);
-        const auto found = runtimes.find(id);
-        if (found != runtimes.end()) {
-            found->second->control.store(Control::Stop, std::memory_order_relaxed);
-            runtimes.erase(found);
+
+        // Keep the removed runtime alive until after the registry lock is released.
+        // Its destructor calls lua_close(), which may run Lua finalizers.
+        std::shared_ptr<Runtime> retired;
+        {
+            std::lock_guard<std::mutex> lock(runtimesMutex);
+            const auto found = runtimes.find(id);
+            if (found != runtimes.end()) {
+                found->second->control.store(Control::Stop, std::memory_order_relaxed);
+                retired = std::move(found->second);
+                runtimes.erase(found);
+            }
         }
+        // If this was the final reference, lua_close() runs here, outside the lock.
     } catch (...) {
         // The shared runtime remains valid for any active nativeExecute call.
     }
