@@ -161,7 +161,7 @@ class ScriptManager(
                     logger.log(LogEntry(level = LogLevel.ERROR, component = "LuaRuntime", message = error.message, scriptId = id, sessionId = sessionId, throwable = error.stackTrace))
                 }
             })
-        } catch (failure: Throwable) {
+        } catch (failure: Exception) {
             // A synchronous startup failure must not strand the session in STARTING or keep
             // its watchdog alive. Removing the token also makes any late callback harmless.
             running.remove(sessionId, active)
