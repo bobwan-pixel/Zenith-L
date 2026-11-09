@@ -93,6 +93,25 @@ class LuaRuntimeInstrumentedTest {
         }
     }
 
+    @Test fun lifecycleListenerExceptionDoesNotInterruptLuaExecution() {
+        val engine = NativeLuaExecutionEngine()
+        val completed = CountDownLatch(1)
+        var error: String? = null
+        try {
+            engine.execute("listener-lifecycle", "callback", "assert(20 + 22 == 42)", "Callback.lua", object : LuaExecutionEngine.Listener {
+                override fun onStarted() { throw IllegalStateException("start callback failure") }
+                override fun onCompleted() { completed.countDown() }
+                override fun onError(trace: String) { error = trace; completed.countDown() }
+                override fun onStopped() { error = "STOPPED"; completed.countDown() }
+            })
+            assertTrue("Lua execution was interrupted by a lifecycle listener exception", completed.await(10, TimeUnit.SECONDS))
+            assertNull(error)
+            assertEquals("", execute(engine, "listener-lifecycle", "assert(2 * 3 == 6)"))
+        } finally {
+            engine.close("listener-lifecycle")
+        }
+    }
+
     @Test fun nativeLua54ExecutesAndIsolatesSeparateSessions() {
         val engine = NativeLuaExecutionEngine()
         try {
