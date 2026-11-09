@@ -30,7 +30,7 @@ class LuaRuntimeInstrumentedTest {
                 assert(runtime.memoryLimitBytes == 32 * 1024 * 1024)
                 assert(runtime.maxSessions == 3)
                 assert(session.id == "introspection")
-                assert(session.runtimeStatus == "READY")
+                assert(session.runtimeStatus == "RUNNING")
                 assert(Zenith.getBridgeStatus() == "UNAVAILABLE")
                 assert(Zenith.gameBridgeStatus == "UNAVAILABLE")
             """.trimIndent()
