@@ -60,7 +60,7 @@ class LuaRuntimeInstrumentedTest {
         val output = CopyOnWriteArrayList<String>()
         var error: String? = null
         try {
-            engine.execute("print-output", "output", """print("hello", 42, true); print("café 😀", "a\\0b")""", "Print.lua", object : LuaExecutionEngine.Listener {
+            engine.execute("print-output", "output", """print("hello", 42, true); print("café 😀", "a\0b")""", "Print.lua", object : LuaExecutionEngine.Listener {
                 override fun onStarted() = Unit
                 override fun onOutput(message: String) { output += message }
                 override fun onCompleted() { completed.countDown() }
