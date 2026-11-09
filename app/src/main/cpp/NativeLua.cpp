@@ -381,11 +381,12 @@ std::shared_ptr<Runtime> findRuntime(const std::string& id) {
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring sessionId, jstring appVersion) {
+Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstring nativeSessionId, jstring appVersion, jstring displaySessionId) {
     try {
-        const std::string id = toString(env, sessionId);
+        const std::string id = toString(env, nativeSessionId);
         const std::string version = toString(env, appVersion);
-        if (id.empty() || env->ExceptionCheck()) return JNI_FALSE;
+        const std::string displayId = toString(env, displaySessionId);
+        if (id.empty() || displayId.empty() || env->ExceptionCheck()) return JNI_FALSE;
         auto runtime = std::make_shared<Runtime>();
         runtime->id = id;
         runtime->state = lua_newstate(boundedAllocator, runtime.get());
@@ -397,7 +398,7 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
         openLibrary(runtime->state, "math", luaopen_math);
         openLibrary(runtime->state, "utf8", luaopen_utf8);
         openLibrary(runtime->state, "coroutine", luaopen_coroutine);
-        registerHostApi(runtime->state, version, id);
+        registerHostApi(runtime->state, version, displayId);
         std::lock_guard<std::mutex> lock(runtimesMutex);
         if (runtimes.find(id) != runtimes.end()) return JNI_FALSE;
         runtimes.emplace(id, std::move(runtime));
