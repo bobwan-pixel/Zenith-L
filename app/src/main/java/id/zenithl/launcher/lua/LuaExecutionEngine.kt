@@ -105,8 +105,11 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
         // Stop native execution, discard queued tasks, and remove the native state.
         // The native ID is unique per SessionRuntime, so a newly opened session with
         // the same public ID cannot accidentally address this runtime generation.
-        NativeLua.nativeClose(runtime.nativeSessionId)
-        runtime.executor.shutdownNow()
+        try {
+            NativeLua.nativeClose(runtime.nativeSessionId)
+        } finally {
+            runtime.executor.shutdownNow()
+        }
     }
 
     companion object { const val MAX_SESSIONS = 3 }
