@@ -1,6 +1,5 @@
 package id.zenithl.launcher.scripts
 
-import java.util.Collections
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -25,7 +24,9 @@ class ScriptScheduler(private val manager: ScriptManager, private val store: Sch
     fun cancelAll() { delayed.values.forEach { it.cancel(false) }; delayed.clear() }
     fun cancelSession(sessionId: String) {
         val prefix = "$sessionId:"
-        Collections.list(delayed.keys()).filter { it.startsWith(prefix) }.forEach { key -> delayed.remove(key)?.cancel(false) }
+        delayed.forEach { key, _ ->
+            if (key.startsWith(prefix)) delayed.remove(key)?.cancel(false)
+        }
     }
     fun onGameBridgeReady(sessionId: String) = dispatch(SchedulerTrigger.GAME_BRIDGE_READY, sessionId)
     fun onSessionCreated(sessionId: String) = dispatch(SchedulerTrigger.SESSION_CREATED, sessionId)
