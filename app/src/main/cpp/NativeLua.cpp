@@ -10,6 +10,8 @@ extern "C" {
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <limits>
 #include <cstdlib>
 #include <initializer_list>
 #include <memory>
@@ -143,28 +145,91 @@ void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t new
     return resized;
 }
 
+std::string utf16ToUtf8(const jchar* chars, jsize length) {
+    std::string output;
+    output.reserve(static_cast<size_t>(length) * 3U);
+    for (jsize index = 0; index < length; ++index) {
+        uint32_t codePoint = chars[index];
+        if (codePoint >= 0xD800U && codePoint <= 0xDBFFU) {
+            if (index + 1 < length && chars[index + 1] >= 0xDC00U && chars[index + 1] <= 0xDFFFU) {
+                codePoint = 0x10000U + ((codePoint - 0xD800U) << 10U) +
+                    (static_cast<uint32_t>(chars[++index]) - 0xDC00U);
+            } else codePoint = 0xFFFDU;
+        } else if (codePoint >= 0xDC00U && codePoint <= 0xDFFFU) codePoint = 0xFFFDU;
+
+        if (codePoint <= 0x7FU) output.push_back(static_cast<char>(codePoint));
+        else if (codePoint <= 0x7FFU) {
+            output.push_back(static_cast<char>(0xC0U | (codePoint >> 6U)));
+            output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+        } else if (codePoint <= 0xFFFFU) {
+            output.push_back(static_cast<char>(0xE0U | (codePoint >> 12U)));
+            output.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
+            output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+        } else {
+            output.push_back(static_cast<char>(0xF0U | (codePoint >> 18U)));
+            output.push_back(static_cast<char>(0x80U | ((codePoint >> 12U) & 0x3FU)));
+            output.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
+            output.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+        }
+    }
+    return output;
+}
+
 std::string toString(JNIEnv* env, jstring value) {
     if (value == nullptr) return {};
-    const char* chars = env->GetStringUTFChars(value, nullptr);
+    const jsize length = env->GetStringLength(value);
+    const jchar* chars = env->GetStringChars(value, nullptr);
     if (chars == nullptr) return {};
-    std::string result(chars);
-    env->ReleaseStringUTFChars(value, chars);
+    std::string result = utf16ToUtf8(chars, length);
+    env->ReleaseStringChars(value, chars);
     return result;
 }
 
+jstring newJavaString(JNIEnv* env, const std::string& value) {
+    const std::u16string utf16 = utf8ToUtf16(value);
+    if (utf16.size() > static_cast<size_t>(std::numeric_limits<jsize>::max())) return nullptr;
+    return env->NewString(reinterpret_cast<const jchar*>(utf16.data()), static_cast<jsize>(utf16.size()));
+}
+
 int zenithPrint(lua_State* state) {
-    std::string message;
-    const int count = lua_gettop(state);
-    for (int index = 1; index <= count; ++index) {
-        size_t length = 0;
-        const char* value = luaL_tolstring(state, index, &length);
-        if (index > 1) message.push_back('\t');
-        if (value != nullptr) message.append(value, length);
-        lua_pop(state, 1);
+    try {
+        std::string message;
+        const int count = lua_gettop(state);
+        for (int index = 1; index <= count; ++index) {
+            if (index > 1) message.push_back('\\t');
+            switch (lua_type(state, index)) {
+                case LUA_TSTRING:
+                case LUA_TNUMBER: {
+                    lua_pushvalue(state, index);
+                    size_t length = 0;
+                    const char* value = lua_tolstring(state, -1, &length);
+                    if (value != nullptr) message.append(value, length);
+                    lua_pop(state, 1);
+                    break;
+                }
+                case LUA_TBOOLEAN:
+                    message.append(lua_toboolean(state, index) ? "true" : "false");
+                    break;
+                case LUA_TNIL:
+                    message.append("nil");
+                    break;
+                default: {
+                    const char* typeName = lua_typename(state, lua_type(state, index));
+                    char pointerText[2 + sizeof(void*) * 2 + 1] = {};
+                    std::snprintf(pointerText, sizeof(pointerText), "%p", lua_topointer(state, index));
+                    message.append(typeName == nullptr ? "value" : typeName);
+                    message.append(": ");
+                    message.append(pointerText);
+                    break;
+                }
+            }
+        }
+        __android_log_write(ANDROID_LOG_INFO, kTag, message.c_str());
+        deliverOutput(message);
+        return 0;
+    } catch (...) {
+        return luaL_error(state, "print output allocation failed");
     }
-    __android_log_write(ANDROID_LOG_INFO, kTag, message.c_str());
-    deliverOutput(message);
-    return 0;
 }
 
 int unavailableApi(lua_State* state) {
@@ -302,7 +367,7 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeCreate(JNIEnv* env, jobject, jstrin
 extern "C" JNIEXPORT jstring JNICALL
 Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstring sessionId, jstring source, jstring chunkName, jobject listener) {
     auto runtime = findRuntime(toString(env, sessionId));
-    if (runtime == nullptr || runtime->state == nullptr) return env->NewStringUTF("Runtime not initialized");
+    if (runtime == nullptr || runtime->state == nullptr) return newJavaString(env, "Runtime not initialized");
     const std::string code = toString(env, source);
     const std::string name = toString(env, chunkName);
     outputEnv = env;
@@ -315,12 +380,12 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstri
     outputEnv = nullptr;
     if (status == LUA_OK) {
         lua_settop(runtime->state, 0);
-        return env->NewStringUTF("");
+        return newJavaString(env, "");
     }
     const char* error = lua_tostring(runtime->state, -1);
     luaL_traceback(runtime->state, runtime->state, error == nullptr ? "Unknown Lua error" : error, 1);
     const char* trace = lua_tostring(runtime->state, -1);
-    jstring result = env->NewStringUTF(trace == nullptr ? "Lua execution failed" : trace);
+    jstring result = newJavaString(env, trace == nullptr ? "Lua execution failed" : trace);
     lua_settop(runtime->state, 0);
     return result;
 }
