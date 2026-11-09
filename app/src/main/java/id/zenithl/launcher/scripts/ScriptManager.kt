@@ -8,7 +8,6 @@ import id.zenithl.launcher.safety.ScriptWatchdog
 import id.zenithl.launcher.safety.WatchdogState
 import java.io.File
 import java.util.UUID
-import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 enum class ScriptState { DISABLED, ENABLED, STARTING, RUNNING, PAUSED, STOPPING, ERROR, TIMEOUT }
@@ -48,7 +47,9 @@ class ScriptManager(
     private val running = ConcurrentHashMap<String, ActiveRun>() // session -> isolated run
 
     fun list(): List<ScriptRecord> = repository.all()
-    fun stopAll() { Collections.list(running.keys()).forEach(::stop) }
+    fun stopAll() {
+        running.forEach { sessionId, _ -> stop(sessionId) }
+    }
     fun search(query: String): List<ScriptRecord> = list().filter { it.name.contains(query, true) }
     fun sort(favoritesFirst: Boolean = false): List<ScriptRecord> = list().sortedWith(compareByDescending<ScriptRecord> { favoritesFirst && it.favorite }.thenBy { it.name.lowercase() })
 
@@ -151,7 +152,7 @@ class ScriptManager(
                 override fun onError(trace: String) {
                     if (running[sessionId] != active) return
                     watchdog?.reportError(sessionId, trace.lineSequence().firstOrNull().orEmpty(), trace)
-                    val line = Regex("\\\\.lua:(\\\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    val line = Regex("\\.lua:(\\d+):").find(trace)?.groupValues?.getOrNull(1)?.toIntOrNull()
                     val error = ScriptError(script.name, script.path, line, trace.lineSequence().firstOrNull().orEmpty(), trace, System.currentTimeMillis(), sessionId)
                     val timeout = trace.contains("runtime budget", ignoreCase = true) || watchdog?.state(sessionId) == WatchdogState.TIMEOUT
                     watchdog?.complete(sessionId, if (timeout) WatchdogState.TIMEOUT else WatchdogState.ERROR)
