@@ -73,6 +73,26 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("print-output") }
     }
 
+    @Test fun outputListenerExceptionDoesNotPoisonNativeExecution() {
+        val engine = NativeLuaExecutionEngine()
+        val completed = CountDownLatch(1)
+        var error: String? = null
+        try {
+            engine.execute("output-exception", "output", "print('callback failure'); assert(6 * 7 == 42)", "Output.lua", object : LuaExecutionEngine.Listener {
+                override fun onStarted() = Unit
+                override fun onOutput(message: String) { throw IllegalStateException("listener failure") }
+                override fun onCompleted() { completed.countDown() }
+                override fun onError(trace: String) { error = trace; completed.countDown() }
+                override fun onStopped() { error = "STOPPED"; completed.countDown() }
+            })
+            assertTrue("Lua execution did not finish after listener exception", completed.await(10, TimeUnit.SECONDS))
+            assertNull(error)
+            assertEquals("", execute(engine, "output-exception", "assert(1 + 1 == 2)"))
+        } finally {
+            engine.close("output-exception")
+        }
+    }
+
     @Test fun nativeLua54ExecutesAndIsolatesSeparateSessions() {
         val engine = NativeLuaExecutionEngine()
         try {
