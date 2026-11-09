@@ -9,6 +9,7 @@ extern "C" {
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
 #include <memory>
