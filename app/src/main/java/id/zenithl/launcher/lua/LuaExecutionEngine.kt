@@ -52,7 +52,7 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
         session.executor.submit task@{
             try {
                 if (session.closed.get()) {
-                    listener.onStopped()
+                    notifyListener { listener.onStopped() }
                     return@task
                 }
                 if (!session.created.get()) {
@@ -83,26 +83,34 @@ class NativeLuaExecutionEngine : LuaExecutionEngine {
                     listener.onStopped()
                     return@task
                 }
-                listener.onStarted()
+                notifyListener { listener.onStarted() }
                 val outputListener = NativeLua.OutputListener { message ->
-                    if (!session.closed.get()) listener.onOutput(message)
+                    if (!session.closed.get()) notifyListener { listener.onOutput(message) }
                 }
                 val error = NativeLua.nativeExecute(session.nativeSessionId, source, "@$chunkName", outputListener)
                     ?: throw IllegalStateException("Native Lua execution returned no result")
                 when {
-                    session.closed.get() -> listener.onStopped()
-                    error.isEmpty() -> listener.onCompleted()
-                    error.contains("Execution stopped by user") -> listener.onStopped()
-                    else -> listener.onError(error)
+                    session.closed.get() -> notifyListener { listener.onStopped() }
+                    error.isEmpty() -> notifyListener { listener.onCompleted() }
+                    error.contains("Execution stopped by user") -> notifyListener { listener.onStopped() }
+                    else -> notifyListener { listener.onError(error) }
                 }
             } catch (error: Exception) {
-                if (session.closed.get()) listener.onStopped()
-                else listener.onError("${error::class.java.simpleName}: ${error.message ?: "Lua runtime failure"}")
+                if (session.closed.get()) notifyListener { listener.onStopped() }
+                else notifyListener { listener.onError("${error::class.java.simpleName}: ${error.message ?: "Lua runtime failure"}") }
             } finally {
                 synchronized(session.controlLock) {
                     session.requestedControl.set(CONTROL_RUNNING)
                 }
             }
+        }
+    }
+
+    private inline fun notifyListener(callback: () -> Unit) {
+        try {
+            callback()
+        } catch (error: Exception) {
+            android.util.Log.e("ZenithLua", "Lua listener callback failed", error)
         }
     }
 
