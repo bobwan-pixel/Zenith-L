@@ -198,13 +198,17 @@ int zenithPrint(lua_State* state) {
         for (int index = 1; index <= count; ++index) {
             if (index > 1) message.push_back('\\t');
             switch (lua_type(state, index)) {
-                case LUA_TSTRING:
-                case LUA_TNUMBER: {
-                    lua_pushvalue(state, index);
+                case LUA_TSTRING: {
                     size_t length = 0;
-                    const char* value = lua_tolstring(state, -1, &length);
+                    const char* value = lua_tolstring(state, index, &length);
                     if (value != nullptr) message.append(value, length);
-                    lua_pop(state, 1);
+                    break;
+                }
+                case LUA_TNUMBER: {
+                    char numberText[64] = {};
+                    std::snprintf(numberText, sizeof(numberText), "%.14g",
+                        static_cast<double>(lua_tonumber(state, index)));
+                    message.append(numberText);
                     break;
                 }
                 case LUA_TBOOLEAN:
@@ -216,7 +220,7 @@ int zenithPrint(lua_State* state) {
                 default: {
                     const char* typeName = lua_typename(state, lua_type(state, index));
                     char pointerText[2 + sizeof(void*) * 2 + 1] = {};
-                    std::snprintf(pointerText, sizeof(pointerText), "%p", lua_topointer(state, index));
+                    std::snprintf(pointerText, sizeof(pointerText), "%p", const_cast<void*>(lua_topointer(state, index)));
                     message.append(typeName == nullptr ? "value" : typeName);
                     message.append(": ");
                     message.append(pointerText);
