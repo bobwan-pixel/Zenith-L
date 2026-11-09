@@ -55,7 +55,7 @@ class SafetyEngine(
     fun incidents(sessionId: String? = null, scriptId: String? = null): List<SafetyIncident> = incidents.filter {
         (sessionId == null || it.sessionId == sessionId) && (scriptId == null || it.scriptId == scriptId)
     }
-    fun snapshot() = SafetySnapshot(Collections.list(stopped.keys()), incidents.size, incidents.peekFirst())
+    fun snapshot() = SafetySnapshot(Collections.list(stopped.keys()).toSet(), incidents.size, incidents.peekFirst())
 }
 
 enum class WatchdogState { RUNNING, PAUSED, STOPPING, STOPPED, ERROR, TIMEOUT, CRASHED }
