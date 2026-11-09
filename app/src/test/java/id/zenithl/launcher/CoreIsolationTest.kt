@@ -134,6 +134,31 @@ class CoreIsolationTest {
         temp.deleteRecursively()
     }
 
+    @Test fun synchronousEngineStartupFailureCleansRunAndWatchdog() {
+        val temp = createTempDir(prefix = "zenith-start-failure-test")
+        val repository = InMemoryScripts()
+        val watchdog = RecordingWatchdog()
+        val engine = ThrowingEngine(IllegalStateException("executor rejected task"))
+        val manager = ScriptManager(repository, temp, engine, MemoryLogger(), watchdog)
+        val script = manager.create("StartupFailure", "print('start')")
+        manager.setEnabled(script.id, true)
+
+        try {
+            manager.run(script.id, "session-failure")
+            fail("synchronous engine failure must be surfaced")
+        } catch (error: IllegalStateException) {
+            assertEquals("executor rejected task", error.message)
+        }
+
+        val saved = requireNotNull(repository.get(script.id))
+        assertEquals(ScriptState.ERROR, saved.state)
+        assertTrue(saved.lastError.orEmpty().contains("executor rejected task"))
+        assertEquals(1, watchdog.completions)
+        assertNull(watchdog.state("session-failure"))
+
+        temp.deleteRecursively()
+    }
+
     @Test fun itemDatabaseLoaderValidatesAndLooksUpRows() {
         val items = ItemDatabaseLoader.parse(listOf("1\tDirt\t0\t1\t1\t30", "2\tRock\t0\t2\t1\t0"))
         assertEquals(listOf(1, 2), items.map(ItemInfo::id))
@@ -252,6 +277,16 @@ class CoreIsolationTest {
         override fun execute(sessionId: String, scriptId: String, source: String, chunkName: String, listener: LuaExecutionEngine.Listener): Future<*> {
             executions++
             return java.util.concurrent.CompletableFuture.completedFuture(null)
+        }
+        override fun pause(sessionId: String) = Unit
+        override fun resume(sessionId: String) = Unit
+        override fun stop(sessionId: String) = Unit
+        override fun close(sessionId: String) = Unit
+    }
+
+    private class ThrowingEngine(private val failure: RuntimeException) : LuaExecutionEngine {
+        override fun execute(sessionId: String, scriptId: String, source: String, chunkName: String, listener: LuaExecutionEngine.Listener): Future<*> {
+            throw failure
         }
         override fun pause(sessionId: String) = Unit
         override fun resume(sessionId: String) = Unit
