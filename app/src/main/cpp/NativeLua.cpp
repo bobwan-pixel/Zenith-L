@@ -38,6 +38,24 @@ std::unordered_map<std::string, std::shared_ptr<Runtime>> runtimes;
 thread_local JNIEnv* outputEnv = nullptr;
 thread_local jobject outputListener = nullptr;
 
+// JNI local references are valid only for the duration of the native call.
+// Keep the callback thread-local and guarantee it is cleared on every C++ exit.
+class OutputCallbackScope {
+public:
+    OutputCallbackScope(JNIEnv* env, jobject listener) {
+        outputEnv = env;
+        outputListener = listener;
+    }
+
+    ~OutputCallbackScope() {
+        outputListener = nullptr;
+        outputEnv = nullptr;
+    }
+
+    OutputCallbackScope(const OutputCallbackScope&) = delete;
+    OutputCallbackScope& operator=(const OutputCallbackScope&) = delete;
+};
+
 std::u16string utf8ToUtf16(const std::string& input) {
     std::u16string output;
     output.reserve(input.size());
@@ -374,14 +392,11 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstri
     if (runtime == nullptr || runtime->state == nullptr) return newJavaString(env, "Runtime not initialized");
     const std::string code = toString(env, source);
     const std::string name = toString(env, chunkName);
-    outputEnv = env;
-    outputListener = listener;
+    OutputCallbackScope outputScope(env, listener);
     lua_sethook(runtime->state, instructionHook, LUA_MASKCOUNT, 1000);
     int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
     if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);
     lua_sethook(runtime->state, nullptr, 0, 0);
-    outputListener = nullptr;
-    outputEnv = nullptr;
     if (status == LUA_OK) {
         lua_settop(runtime->state, 0);
         return newJavaString(env, "");
