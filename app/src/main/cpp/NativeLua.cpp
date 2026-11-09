@@ -147,7 +147,7 @@ void* boundedAllocator(void* userData, void* pointer, size_t oldSize, size_t new
 
 std::string utf16ToUtf8(const jchar* chars, jsize length) {
     std::string output;
-    output.reserve(static_cast<size_t>(length) * 3U);
+    output.reserve(static_cast<size_t>(length));
     for (jsize index = 0; index < length; ++index) {
         uint32_t codePoint = chars[index];
         if (codePoint >= 0xD800U && codePoint <= 0xDBFFU) {
