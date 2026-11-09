@@ -196,7 +196,7 @@ int zenithPrint(lua_State* state) {
         std::string message;
         const int count = lua_gettop(state);
         for (int index = 1; index <= count; ++index) {
-            if (index > 1) message.push_back('\\t');
+            if (index > 1) message.push_back('\t');
             switch (lua_type(state, index)) {
                 case LUA_TSTRING: {
                     size_t length = 0;
