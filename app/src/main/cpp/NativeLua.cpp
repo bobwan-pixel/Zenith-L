@@ -125,7 +125,7 @@ int getSessionInfo(lua_State* state) {
     lua_newtable(state);
     lua_pushstring(state, lua_tostring(state, lua_upvalueindex(1)));
     lua_setfield(state, -2, "id");
-    lua_pushliteral(state, "READY");
+    lua_pushliteral(state, "RUNNING");
     lua_setfield(state, -2, "runtimeStatus");
     return 1;
 }
