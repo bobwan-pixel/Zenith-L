@@ -477,6 +477,16 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeExecute(JNIEnv* env, jobject, jstri
         int status = luaL_loadbuffer(runtime->state, code.data(), code.size(), name.c_str());
         if (status == LUA_OK) status = lua_pcall(runtime->state, 0, LUA_MULTRET, 0);
         lua_sethook(runtime->state, nullptr, 0, 0);
+        // A coroutine's hook raises an error on that coroutine's stack. Lua's
+        // coroutine.resume() converts that error into (false, message), so the
+        // main chunk can otherwise finish successfully after Stop was requested.
+        // The runtime control state is authoritative for the session outcome.
+        const bool stopRequested =
+            runtime->control.load(std::memory_order_acquire) == Control::Stop;
+        if (stopRequested) {
+            lua_settop(runtime->state, 0);
+            return newJavaString(env, "Execution stopped by user");
+        }
         if (status == LUA_OK) {
             lua_settop(runtime->state, 0);
             return newJavaString(env, "");
