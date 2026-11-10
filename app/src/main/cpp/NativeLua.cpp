@@ -28,6 +28,7 @@ struct Runtime {
     size_t allocatedBytes = 0;
     static constexpr size_t memoryLimitBytes = 32U * 1024U * 1024U;
     std::atomic<Control> control{Control::Running};
+    std::atomic<bool> closing{false};
     std::string id;
     ~Runtime() { if (state != nullptr) lua_close(state); }
 };
@@ -504,7 +505,16 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeControl(JNIEnv* env, jobject, jstri
         auto runtime = findRuntime(toString(env, sessionId));
         if (runtime == nullptr || env->ExceptionCheck()) return;
         const auto control = action == 1 ? Control::Paused : action == 2 ? Control::Stop : Control::Running;
-        runtime->control.store(control, std::memory_order_relaxed);
+        if (runtime->closing.load(std::memory_order_acquire)) {
+            runtime->control.store(Control::Stop, std::memory_order_release);
+            return;
+        }
+        runtime->control.store(control, std::memory_order_release);
+        // nativeClose() may race after findRuntime() returned this shared pointer.
+        // Recheck closing so a late pause/resume cannot overwrite the close request.
+        if (runtime->closing.load(std::memory_order_acquire)) {
+            runtime->control.store(Control::Stop, std::memory_order_release);
+        }
     } catch (...) {
         // Control is best-effort; execution remains protected by the instruction hook.
     }
@@ -523,7 +533,8 @@ Java_id_zenithl_launcher_lua_NativeLua_nativeClose(JNIEnv* env, jobject, jstring
             std::lock_guard<std::mutex> lock(runtimesMutex);
             const auto found = runtimes.find(id);
             if (found != runtimes.end()) {
-                found->second->control.store(Control::Stop, std::memory_order_relaxed);
+                found->second->closing.store(true, std::memory_order_release);
+                found->second->control.store(Control::Stop, std::memory_order_release);
                 retired = std::move(found->second);
                 runtimes.erase(found);
             }
