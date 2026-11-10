@@ -511,8 +511,10 @@ static const char *matchbalance (MatchState *ms, const char *s,
 static const char *max_expand (MatchState *ms, const char *s,
                                  const char *p, const char *ep) {
   ptrdiff_t i = 0;  /* counts maximum expand for item */
-  while (singlematch(ms, s + i, p, ep))
+  while (singlematch(ms, s + i, p, ep)) {
+    if (((++ms->steps) & 0x3FFU) == 0) zenithCheckExecution(ms->L);
     i++;
+  }
   /* keeps trying to match with the maximum repetitions */
   while (i>=0) {
     const char *res = match(ms, (s+i), ep+1);
@@ -526,6 +528,7 @@ static const char *max_expand (MatchState *ms, const char *s,
 static const char *min_expand (MatchState *ms, const char *s,
                                  const char *p, const char *ep) {
   for (;;) {
+    if (((++ms->steps) & 0x3FFU) == 0) zenithCheckExecution(ms->L);
     const char *res = match(ms, s, ep+1);
     if (res != NULL)
       return res;
