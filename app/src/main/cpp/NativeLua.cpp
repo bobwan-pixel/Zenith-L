@@ -257,43 +257,61 @@ jstring newJavaString(JNIEnv* env, const std::string& value) {
     return env->NewString(reinterpret_cast<const jchar*>(utf16.data()), static_cast<jsize>(utf16.size()));
 }
 
+constexpr size_t kMaxPrintBytes = 16U * 1024U;
+constexpr char kPrintTruncatedSuffix[] = "...[truncated]";
+constexpr size_t kMaxPrintContentBytes =
+    kMaxPrintBytes - (sizeof(kPrintTruncatedSuffix) - 1U);
+
+void appendPrintOutput(std::string& message, const char* value, size_t length, bool& truncated) {
+    if (truncated || value == nullptr) return;
+    const size_t available = kMaxPrintContentBytes - message.size();
+    const size_t copied = std::min(length, available);
+    message.append(value, copied);
+    truncated = copied < length;
+}
+
 int zenithPrint(lua_State* state) {
     try {
         std::string message;
+        bool truncated = false;
         const int count = lua_gettop(state);
-        for (int index = 1; index <= count; ++index) {
-            if (index > 1) message.push_back('\t');
+        for (int index = 1; index <= count && !truncated; ++index) {
+            if (index > 1) appendPrintOutput(message, "\\t", 1, truncated);
             switch (lua_type(state, index)) {
                 case LUA_TSTRING: {
                     size_t length = 0;
                     const char* value = lua_tolstring(state, index, &length);
-                    if (value != nullptr) message.append(value, length);
+                    appendPrintOutput(message, value, length, truncated);
                     break;
                 }
                 case LUA_TNUMBER: {
                     char numberText[64] = {};
                     std::snprintf(numberText, sizeof(numberText), "%.14g",
                         static_cast<double>(lua_tonumber(state, index)));
-                    message.append(numberText);
+                    appendPrintOutput(message, numberText, std::strlen(numberText), truncated);
                     break;
                 }
-                case LUA_TBOOLEAN:
-                    message.append(lua_toboolean(state, index) ? "true" : "false");
+                case LUA_TBOOLEAN: {
+                    const char* value = lua_toboolean(state, index) ? "true" : "false";
+                    appendPrintOutput(message, value, std::strlen(value), truncated);
                     break;
+                }
                 case LUA_TNIL:
-                    message.append("nil");
+                    appendPrintOutput(message, "nil", 3, truncated);
                     break;
                 default: {
                     const char* typeName = lua_typename(state, lua_type(state, index));
                     char pointerText[2 + sizeof(void*) * 2 + 1] = {};
                     std::snprintf(pointerText, sizeof(pointerText), "%p", const_cast<void*>(lua_topointer(state, index)));
-                    message.append(typeName == nullptr ? "value" : typeName);
-                    message.append(": ");
-                    message.append(pointerText);
+                    const char* safeTypeName = typeName == nullptr ? "value" : typeName;
+                    appendPrintOutput(message, safeTypeName, std::strlen(safeTypeName), truncated);
+                    appendPrintOutput(message, ": ", 2, truncated);
+                    appendPrintOutput(message, pointerText, std::strlen(pointerText), truncated);
                     break;
                 }
             }
         }
+        if (truncated) message.append(kPrintTruncatedSuffix);
         __android_log_write(ANDROID_LOG_INFO, kTag, message.c_str());
         deliverOutput(message);
         return 0;
