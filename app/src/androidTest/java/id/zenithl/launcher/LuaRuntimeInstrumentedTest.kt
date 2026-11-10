@@ -322,6 +322,39 @@ class LuaRuntimeInstrumentedTest {
         }
     }
 
+    @Test fun stopInterruptsLargeNativeTableSort() {
+        val engine = NativeLuaExecutionEngine()
+        val sorting = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val reportedStopped = AtomicBoolean(false)
+        val completed = AtomicBoolean(false)
+        val error = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        engine.execute(
+            "table-sort-stop",
+            "table-sort",
+            """local values = {}; for i=1,400000 do values[i] = 400001-i end; print("sorting"); table.sort(values)""",
+            "TableSortStop.lua",
+            object : LuaExecutionEngine.Listener {
+                override fun onStarted() = Unit
+                override fun onOutput(message: String) { if (message == "sorting") sorting.countDown() }
+                override fun onCompleted() { completed.set(true); stopped.countDown() }
+                override fun onError(trace: String) { error.set(trace); stopped.countDown() }
+                override fun onStopped() { reportedStopped.set(true); stopped.countDown() }
+            }
+        )
+        try {
+            assertTrue("Table sort did not reach its native sort operation", sorting.await(10, TimeUnit.SECONDS))
+            Thread.sleep(50)
+            engine.stop("table-sort-stop")
+            assertTrue("Stop did not interrupt native table.sort", stopped.await(5, TimeUnit.SECONDS))
+            assertTrue("Table sort Stop was not reported through onStopped", reportedStopped.get())
+            assertFalse("Table sort completed despite Stop", completed.get())
+            assertNull("Table sort Stop surfaced as an unexpected Lua error", error.get())
+        } finally {
+            engine.close("table-sort-stop")
+        }
+    }
+
     @Test fun memoryLimitFailureReturnsAnErrorWithoutDestroyingTheRuntime() {
         val engine = NativeLuaExecutionEngine()
         try {
