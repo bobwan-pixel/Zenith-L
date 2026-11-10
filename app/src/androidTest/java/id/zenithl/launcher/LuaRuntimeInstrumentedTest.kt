@@ -144,6 +144,28 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("stop") }
     }
 
+    @Test fun stopInsideCoroutineIsReportedAsStopped() {
+        val engine = NativeLuaExecutionEngine()
+        val started = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val completed = AtomicBoolean(false)
+        engine.execute("coroutine-stop", "coroutine", "local co = coroutine.create(function() while true do end end); coroutine.resume(co)", "CoroutineStop.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() { started.countDown() }
+            override fun onCompleted() { completed.set(true); stopped.countDown() }
+            override fun onError(trace: String) { stopped.countDown() }
+            override fun onStopped() { stopped.countDown() }
+        })
+        try {
+            assertTrue("Coroutine script did not start", started.await(5, TimeUnit.SECONDS))
+            Thread.sleep(50)
+            engine.stop("coroutine-stop")
+            assertTrue("Stop was not observed inside the coroutine", stopped.await(5, TimeUnit.SECONDS))
+            assertFalse("A stopped coroutine was incorrectly reported as completed", completed.get())
+        } finally {
+            engine.close("coroutine-stop")
+        }
+    }
+
     @Test fun closingSessionStopsRuntimeAndDiscardsQueuedScripts() {
         val engine = NativeLuaExecutionEngine()
         val started = CountDownLatch(1)
