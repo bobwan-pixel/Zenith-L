@@ -23,6 +23,9 @@
 #include "lua.h"
 
 #include "lauxlib.h"
+
+/* Host runtime cancellation checkpoint, implemented by NativeLua.cpp. */
+extern void zenithCheckExecution (lua_State *L);
 #include "lualib.h"
 
 
@@ -361,6 +364,7 @@ typedef struct MatchState {
   const char *p_end;  /* end ('\0') of pattern */
   lua_State *L;
   int matchdepth;  /* control for recursive depth (to avoid C stack overflow) */
+  unsigned int steps;  /* bounded work between host cancellation checks */
   unsigned char level;  /* total number of captures (finished or unfinished) */
   struct {
     const char *init;
@@ -493,6 +497,7 @@ static const char *matchbalance (MatchState *ms, const char *s,
     int e = *(p+1);
     int cont = 1;
     while (++s < ms->src_end) {
+      if (((++ms->steps) & 0x3FFU) == 0) zenithCheckExecution(ms->L);
       if (*s == e) {
         if (--cont == 0) return s+1;
       }
@@ -571,6 +576,7 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
   if (l_unlikely(ms->matchdepth-- == 0))
     luaL_error(ms->L, "pattern too complex");
   init: /* using goto to optimize tail recursion */
+  if (((++ms->steps) & 0x3FFU) == 0) zenithCheckExecution(ms->L);
   if (p != ms->p_end) {  /* end of pattern? */
     switch (*p) {
       case '(': {  /* start capture */
@@ -760,6 +766,7 @@ static void prepstate (MatchState *ms, lua_State *L,
   ms->src_init = s;
   ms->src_end = s + ls;
   ms->p_end = p + lp;
+  ms->steps = 0;
 }
 
 
