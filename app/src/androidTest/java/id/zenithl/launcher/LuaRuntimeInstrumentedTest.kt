@@ -267,6 +267,38 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("pause") }
     }
 
+    @Test fun stopInterruptsExpensiveLuaStringPatternMatching() {
+        val engine = NativeLuaExecutionEngine()
+        val started = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val reportedStopped = AtomicBoolean(false)
+        val completed = AtomicBoolean(false)
+        val error = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        engine.execute(
+            "pattern-stop",
+            "pattern",
+            """local input = string.rep("a", 100000); string.match(input, "a*a*a*a*a*a*a*a*a*a*b")""",
+            "PatternStop.lua",
+            object : LuaExecutionEngine.Listener {
+                override fun onStarted() { started.countDown() }
+                override fun onCompleted() { completed.set(true); stopped.countDown() }
+                override fun onError(trace: String) { error.set(trace); stopped.countDown() }
+                override fun onStopped() { reportedStopped.set(true); stopped.countDown() }
+            }
+        )
+        try {
+            assertTrue("Pattern test did not start", started.await(5, TimeUnit.SECONDS))
+            Thread.sleep(50)
+            engine.stop("pattern-stop")
+            assertTrue("Stop did not interrupt native string pattern matching", stopped.await(5, TimeUnit.SECONDS))
+            assertTrue("Pattern Stop was not reported through onStopped", reportedStopped.get())
+            assertFalse("Pattern execution completed despite Stop", completed.get())
+            assertNull("Pattern Stop surfaced as an unexpected Lua error", error.get())
+        } finally {
+            engine.close("pattern-stop")
+        }
+    }
+
     @Test fun memoryLimitFailureReturnsAnErrorWithoutDestroyingTheRuntime() {
         val engine = NativeLuaExecutionEngine()
         try {
