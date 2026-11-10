@@ -18,9 +18,9 @@ extern "C" {
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 extern "C" void zenithCheckExecution(lua_State* state);
-#include <unordered_map>
 
 namespace {
 constexpr char kTag[] = "ZenithLua";
