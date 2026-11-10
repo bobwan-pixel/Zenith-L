@@ -23,10 +23,10 @@
 #include "lua.h"
 
 #include "lauxlib.h"
+#include "lualib.h"
 
 /* Host runtime cancellation checkpoint, implemented by NativeLua.cpp. */
 extern void zenithCheckExecution (lua_State *L);
-#include "lualib.h"
 
 
 /*
