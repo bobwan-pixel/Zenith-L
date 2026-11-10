@@ -19,6 +19,13 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+extern void zenithCheckExecution (lua_State *L);
+
+static void checkSortExecution (lua_State *L, unsigned int *steps) {
+  if ((++(*steps) & 1023u) == 0)
+    zenithCheckExecution(L);
+}
+
 
 /*
 ** Operations that an object must define to mimic a table
@@ -272,7 +279,8 @@ static void set2 (lua_State *L, IdxT i, IdxT j) {
 ** Return true iff value at stack index 'a' is less than the value at
 ** index 'b' (according to the order of the sort).
 */
-static int sort_comp (lua_State *L, int a, int b) {
+static int sort_comp (lua_State *L, int a, int b, unsigned int *steps) {
+  checkSortExecution(L, steps);
   if (lua_isnil(L, 2))  /* no function? */
     return lua_compare(L, a, b, LUA_OPLT);  /* a < b */
   else {  /* function */
@@ -295,20 +303,21 @@ static int sort_comp (lua_State *L, int a, int b) {
 ** Pos-condition: a[lo .. i - 1] <= a[i] == P <= a[i + 1 .. up]
 ** returns 'i'.
 */
-static IdxT partition (lua_State *L, IdxT lo, IdxT up) {
+static IdxT partition (lua_State *L, IdxT lo, IdxT up,
+                       unsigned int *steps) {
   IdxT i = lo;  /* will be incremented before first use */
   IdxT j = up - 1;  /* will be decremented before first use */
   /* loop invariant: a[lo .. i] <= P <= a[j .. up] */
   for (;;) {
     /* next loop: repeat ++i while a[i] < P */
-    while ((void)lua_geti(L, 1, ++i), sort_comp(L, -1, -2)) {
+    while ((void)lua_geti(L, 1, ++i), sort_comp(L, -1, -2, steps)) {
       if (l_unlikely(i == up - 1))  /* a[i] < P  but a[up - 1] == P  ?? */
         luaL_error(L, "invalid order function for sorting");
       lua_pop(L, 1);  /* remove a[i] */
     }
     /* after the loop, a[i] >= P and a[lo .. i - 1] < P */
     /* next loop: repeat --j while P < a[j] */
-    while ((void)lua_geti(L, 1, --j), sort_comp(L, -3, -1)) {
+    while ((void)lua_geti(L, 1, --j), sort_comp(L, -3, -1, steps)) {
       if (l_unlikely(j < i))  /* j < i  but  a[j] > P ?? */
         luaL_error(L, "invalid order function for sorting");
       lua_pop(L, 1);  /* remove a[j] */
@@ -343,14 +352,14 @@ static IdxT choosePivot (IdxT lo, IdxT up, unsigned int rnd) {
 ** Quicksort algorithm (recursive function)
 */
 static void auxsort (lua_State *L, IdxT lo, IdxT up,
-                                   unsigned int rnd) {
+                     unsigned int rnd, unsigned int *steps) {
   while (lo < up) {  /* loop for tail recursion */
     IdxT p;  /* Pivot index */
     IdxT n;  /* to be used later */
     /* sort elements 'lo', 'p', and 'up' */
     lua_geti(L, 1, lo);
     lua_geti(L, 1, up);
-    if (sort_comp(L, -1, -2))  /* a[up] < a[lo]? */
+    if (sort_comp(L, -1, -2, steps))  /* a[up] < a[lo]? */
       set2(L, lo, up);  /* swap a[lo] - a[up] */
     else
       lua_pop(L, 2);  /* remove both values */
@@ -362,12 +371,12 @@ static void auxsort (lua_State *L, IdxT lo, IdxT up,
       p = choosePivot(lo, up, rnd);
     lua_geti(L, 1, p);
     lua_geti(L, 1, lo);
-    if (sort_comp(L, -2, -1))  /* a[p] < a[lo]? */
+    if (sort_comp(L, -2, -1, steps))  /* a[p] < a[lo]? */
       set2(L, p, lo);  /* swap a[p] - a[lo] */
     else {
       lua_pop(L, 1);  /* remove a[lo] */
       lua_geti(L, 1, up);
-      if (sort_comp(L, -1, -2))  /* a[up] < a[p]? */
+      if (sort_comp(L, -1, -2, steps))  /* a[up] < a[p]? */
         set2(L, p, up);  /* swap a[up] - a[p] */
       else
         lua_pop(L, 2);
@@ -378,15 +387,15 @@ static void auxsort (lua_State *L, IdxT lo, IdxT up,
     lua_pushvalue(L, -1);  /* push Pivot */
     lua_geti(L, 1, up - 1);  /* push a[up - 1] */
     set2(L, p, up - 1);  /* swap Pivot (a[p]) with a[up - 1] */
-    p = partition(L, lo, up);
+    p = partition(L, lo, up, steps);
     /* a[lo .. p - 1] <= a[p] == P <= a[p + 1 .. up] */
     if (p - lo < up - p) {  /* lower interval is smaller? */
-      auxsort(L, lo, p - 1, rnd);  /* call recursively for lower interval */
+      auxsort(L, lo, p - 1, rnd, steps);  /* call recursively for lower interval */
       n = p - lo;  /* size of smaller interval */
       lo = p + 1;  /* tail call for [p + 1 .. up] (upper interval) */
     }
     else {
-      auxsort(L, p + 1, up, rnd);  /* call recursively for upper interval */
+      auxsort(L, p + 1, up, rnd, steps);  /* call recursively for upper interval */
       n = up - p;  /* size of smaller interval */
       up = p - 1;  /* tail call for [lo .. p - 1]  (lower interval) */
     }
@@ -403,7 +412,8 @@ static int sort (lua_State *L) {
     if (!lua_isnoneornil(L, 2))  /* is there a 2nd argument? */
       luaL_checktype(L, 2, LUA_TFUNCTION);  /* must be a function */
     lua_settop(L, 2);  /* make sure there are two arguments */
-    auxsort(L, 1, (IdxT)n, 0);
+    unsigned int steps = 0;
+    auxsort(L, 1, (IdxT)n, 0, &steps);
   }
   return 0;
 }
