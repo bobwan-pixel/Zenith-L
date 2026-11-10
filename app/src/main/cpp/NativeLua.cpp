@@ -11,6 +11,7 @@ extern "C" {
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <cstdlib>
 #include <initializer_list>
@@ -276,7 +277,7 @@ int zenithPrint(lua_State* state) {
         bool truncated = false;
         const int count = lua_gettop(state);
         for (int index = 1; index <= count && !truncated; ++index) {
-            if (index > 1) appendPrintOutput(message, "\\t", 1, truncated);
+            if (index > 1) appendPrintOutput(message, "\t", 1, truncated);
             switch (lua_type(state, index)) {
                 case LUA_TSTRING: {
                     size_t length = 0;
