@@ -161,6 +161,39 @@ class LuaRuntimeInstrumentedTest {
         assertFalse("A queued script ran after its session was closed", queuedStarted.get())
     }
 
+    @Test fun concurrentPauseAndResumeCannotOverrideSessionClose() {
+        val engine = NativeLuaExecutionEngine()
+        val started = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val keepControlling = AtomicBoolean(true)
+        val controller = Thread {
+            while (keepControlling.get()) {
+                engine.pause("control-close-race")
+                engine.resume("control-close-race")
+            }
+        }
+        engine.execute("control-close-race", "loop", "while true do end", "ControlCloseRace.lua", object : LuaExecutionEngine.Listener {
+            override fun onStarted() { started.countDown() }
+            override fun onCompleted() = Unit
+            override fun onError(trace: String) { stopped.countDown() }
+            override fun onStopped() { stopped.countDown() }
+        })
+        try {
+            assertTrue("Lua script did not start", started.await(5, TimeUnit.SECONDS))
+            controller.start()
+            Thread.sleep(50)
+            engine.close("control-close-race")
+            keepControlling.set(false)
+            controller.join(2_000)
+            assertFalse("Control stress thread did not stop", controller.isAlive)
+            assertTrue("A late pause/resume prevented native close from stopping Lua", stopped.await(5, TimeUnit.SECONDS))
+        } finally {
+            keepControlling.set(false)
+            engine.close("control-close-race")
+            controller.join(2_000)
+        }
+    }
+
     @Test fun closedSessionIdCanBeReusedWithoutStaleNativeRuntimeCollision() {
         val engine = NativeLuaExecutionEngine()
         val oldStarted = CountDownLatch(1)
