@@ -76,11 +76,13 @@ static int tinsert (lua_State *L) {
     }
     case 3: {
       lua_Integer i;
+      unsigned int steps = 0;
       pos = luaL_checkinteger(L, 2);  /* 2nd argument is the position */
       /* check whether 'pos' is in [1, e] */
       luaL_argcheck(L, (lua_Unsigned)pos - 1u < (lua_Unsigned)e, 2,
                        "position out of bounds");
       for (i = e; i > pos; i--) {  /* move up elements */
+        checkSortExecution(L, &steps);
         lua_geti(L, 1, i - 1);
         lua_seti(L, 1, i);  /* t[i] = t[i - 1] */
       }
@@ -103,7 +105,9 @@ static int tremove (lua_State *L) {
     luaL_argcheck(L, (lua_Unsigned)pos - 1u <= (lua_Unsigned)size, 2,
                      "position out of bounds");
   lua_geti(L, 1, pos);  /* result = t[pos] */
+  unsigned int steps = 0;
   for ( ; pos < size; pos++) {
+    checkSortExecution(L, &steps);
     lua_geti(L, 1, pos + 1);
     lua_seti(L, 1, pos);  /* t[pos] = t[pos + 1] */
   }
@@ -128,6 +132,7 @@ static int tmove (lua_State *L) {
   checktab(L, tt, TAB_W);
   if (e >= f) {  /* otherwise, nothing to move */
     lua_Integer n, i;
+    unsigned int steps = 0;
     luaL_argcheck(L, f > 0 || e < LUA_MAXINTEGER + f, 3,
                   "too many elements to move");
     n = e - f + 1;  /* number of elements to move */
@@ -135,12 +140,14 @@ static int tmove (lua_State *L) {
                   "destination wrap around");
     if (t > e || t <= f || (tt != 1 && !lua_compare(L, 1, tt, LUA_OPEQ))) {
       for (i = 0; i < n; i++) {
+        checkSortExecution(L, &steps);
         lua_geti(L, 1, f + i);
         lua_seti(L, tt, t + i);
       }
     }
     else {
       for (i = n - 1; i >= 0; i--) {
+        checkSortExecution(L, &steps);
         lua_geti(L, 1, f + i);
         lua_seti(L, tt, t + i);
       }
@@ -168,7 +175,9 @@ static int tconcat (lua_State *L) {
   lua_Integer i = luaL_optinteger(L, 3, 1);
   last = luaL_optinteger(L, 4, last);
   luaL_buffinit(L, &b);
+  unsigned int steps = 0;
   for (; i < last; i++) {
+    checkSortExecution(L, &steps);
     addfield(L, &b, i);
     luaL_addlstring(&b, sep, lsep);
   }
@@ -207,7 +216,9 @@ static int tunpack (lua_State *L) {
   if (l_unlikely(n >= (unsigned int)INT_MAX  ||
                  !lua_checkstack(L, (int)(++n))))
     return luaL_error(L, "too many results to unpack");
+  unsigned int steps = 0;
   for (; i < e; i++) {  /* push arg[i..e - 1] (to avoid overflows) */
+    checkSortExecution(L, &steps);
     lua_geti(L, 1, i);
   }
   lua_geti(L, 1, e);  /* push last element */
