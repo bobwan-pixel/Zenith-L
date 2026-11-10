@@ -18,6 +18,8 @@ extern "C" {
 #include <mutex>
 #include <string>
 #include <thread>
+
+extern "C" void zenithCheckExecution(lua_State* state);
 #include <unordered_map>
 
 namespace {
