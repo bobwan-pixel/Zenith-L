@@ -341,15 +341,7 @@ void openLibrary(lua_State* state, const char* name, lua_CFunction open) {
 }
 
 void instructionHook(lua_State* state, lua_Debug*) {
-    auto** runtimeSlot = static_cast<Runtime**>(lua_getextraspace(state));
-    auto* runtime = runtimeSlot == nullptr ? nullptr : *runtimeSlot;
-    if (runtime == nullptr) return;
-    while (runtime->control.load(std::memory_order_relaxed) == Control::Paused) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-    if (runtime->control.load(std::memory_order_relaxed) == Control::Stop) {
-        luaL_error(state, "Execution stopped by user");
-    }
+    zenithCheckExecution(state);
 }
 
 void registerHostApi(lua_State* state, const std::string& appVersion, const std::string& sessionId) {
@@ -434,6 +426,18 @@ std::shared_ptr<Runtime> findRuntime(const std::string& id) {
     const auto found = runtimes.find(id);
     return found == runtimes.end() ? nullptr : found->second;
 }
+}
+
+extern "C" void zenithCheckExecution(lua_State* state) {
+    auto** runtimeSlot = static_cast<Runtime**>(lua_getextraspace(state));
+    auto* runtime = runtimeSlot == nullptr ? nullptr : *runtimeSlot;
+    if (runtime == nullptr) return;
+    while (runtime->control.load(std::memory_order_acquire) == Control::Paused) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (runtime->control.load(std::memory_order_acquire) == Control::Stop) {
+        luaL_error(state, "Execution stopped by user");
+    }
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
