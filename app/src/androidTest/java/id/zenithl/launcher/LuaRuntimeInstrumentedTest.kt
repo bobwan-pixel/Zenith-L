@@ -73,6 +73,29 @@ class LuaRuntimeInstrumentedTest {
         } finally { engine.close("print-output") }
     }
 
+    @Test fun nativePrintOutputIsBoundedForLargeLuaStrings() {
+        val engine = NativeLuaExecutionEngine()
+        val completed = CountDownLatch(1)
+        val output = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        var error: String? = null
+        try {
+            engine.execute("print-limit", "large-output", """print(string.rep("x", 100000))""", "LargeOutput.lua", object : LuaExecutionEngine.Listener {
+                override fun onStarted() = Unit
+                override fun onOutput(message: String) { output.set(message) }
+                override fun onCompleted() { completed.countDown() }
+                override fun onError(trace: String) { error = trace; completed.countDown() }
+                override fun onStopped() { error = "STOPPED"; completed.countDown() }
+            })
+            assertTrue("Large print did not finish", completed.await(10, TimeUnit.SECONDS))
+            assertNull(error)
+            val message = requireNotNull(output.get())
+            assertTrue("Native print output exceeded its 16 KiB cap", message.toByteArray(Charsets.UTF_8).size <= 16 * 1024)
+            assertTrue("Oversized output was not marked as truncated", message.endsWith("...[truncated]"))
+        } finally {
+            engine.close("print-limit")
+        }
+    }
+
     @Test fun outputListenerExceptionDoesNotPoisonNativeExecution() {
         val engine = NativeLuaExecutionEngine()
         val completed = CountDownLatch(1)
