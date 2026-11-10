@@ -355,6 +355,39 @@ class LuaRuntimeInstrumentedTest {
         }
     }
 
+    @Test fun stopInterruptsLargeNativeTableMove() {
+        val engine = NativeLuaExecutionEngine()
+        val moving = CountDownLatch(1)
+        val stopped = CountDownLatch(1)
+        val reportedStopped = AtomicBoolean(false)
+        val completed = AtomicBoolean(false)
+        val error = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        engine.execute(
+            "table-move-stop",
+            "table-move",
+            """local source = {}; local destination = {}; for i=1,400000 do source[i] = i end; print("moving"); table.move(source, 1, 400000, 1, destination)""",
+            "TableMoveStop.lua",
+            object : LuaExecutionEngine.Listener {
+                override fun onStarted() = Unit
+                override fun onOutput(message: String) { if (message == "moving") moving.countDown() }
+                override fun onCompleted() { completed.set(true); stopped.countDown() }
+                override fun onError(trace: String) { error.set(trace); stopped.countDown() }
+                override fun onStopped() { reportedStopped.set(true); stopped.countDown() }
+            }
+        )
+        try {
+            assertTrue("Table move did not reach its native bulk operation", moving.await(10, TimeUnit.SECONDS))
+            Thread.sleep(50)
+            engine.stop("table-move-stop")
+            assertTrue("Stop did not interrupt native table.move", stopped.await(5, TimeUnit.SECONDS))
+            assertTrue("Table move Stop was not reported through onStopped", reportedStopped.get())
+            assertFalse("Table move completed despite Stop", completed.get())
+            assertNull("Table move Stop surfaced as an unexpected Lua error", error.get())
+        } finally {
+            engine.close("table-move-stop")
+        }
+    }
+
     @Test fun memoryLimitFailureReturnsAnErrorWithoutDestroyingTheRuntime() {
         val engine = NativeLuaExecutionEngine()
         try {
