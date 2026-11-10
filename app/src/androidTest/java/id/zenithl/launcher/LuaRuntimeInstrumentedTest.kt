@@ -41,7 +41,7 @@ class LuaRuntimeInstrumentedTest {
     @Test fun runtimeExposesOnlyTheDocumentedSafeStandardLibraries() {
         val engine = NativeLuaExecutionEngine()
         try {
-            assertEquals("", execute(engine, "sandbox", "assert(load == nil and dofile == nil and loadfile == nil and package == nil and io == nil and os == nil and debug == nil)"))
+            assertEquals("", execute(engine, "sandbox", "assert(load == nil and dofile == nil and loadfile == nil and warn == nil and package == nil and io == nil and os == nil and debug == nil)"))
         } finally { engine.close("sandbox") }
     }
 
