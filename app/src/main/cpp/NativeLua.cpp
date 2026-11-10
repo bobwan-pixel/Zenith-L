@@ -366,7 +366,7 @@ void instructionHook(lua_State* state, lua_Debug*) {
 }
 
 void registerHostApi(lua_State* state, const std::string& appVersion, const std::string& sessionId) {
-    for (const char* unsafeBaseFunction : {"dofile", "loadfile", "load"}) {
+    for (const char* unsafeBaseFunction : {"dofile", "loadfile", "load", "warn"}) {
         lua_pushnil(state);
         lua_setglobal(state, unsafeBaseFunction);
     }
